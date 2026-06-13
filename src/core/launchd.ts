@@ -67,6 +67,11 @@ export async function installDaemon(
   await Bun.write(plistPath, plistContent);
   await exec("/bin/launchctl", ["bootout", `${domain}/${label}`]);
 
+  // A prior `launchctl disable` (e.g. from `vpnctl down`) leaves a persistent
+  // override that makes `bootstrap` fail with "5: Input/output error" even
+  // after the job is booted out and the plist removed — clear it first.
+  await enableDaemon(exec, label, domain);
+
   const result = await exec("/bin/launchctl", ["bootstrap", domain, plistPath]);
   if (result.exitCode !== 0) {
     throw new Error(`failed to bootstrap ${label}: ${result.stderr.trim()}`);
