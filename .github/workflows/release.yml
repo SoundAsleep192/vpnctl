@@ -1,0 +1,51 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build macOS binaries (${{ matrix.arch }})
+    runs-on: macos-latest
+    strategy:
+      matrix:
+        arch: [arm64, x64]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: "1.3.14"
+      - run: bun install --frozen-lockfile
+      - name: Build binaries
+        run: |
+          mkdir -p dist
+          bun build --compile --target=bun-darwin-${{ matrix.arch }} bin/vpnctl.ts --outfile dist/vpnctl
+          bun build --compile --target=bun-darwin-${{ matrix.arch }} src/daemon/monitor.ts --outfile dist/vpnctl-monitor
+          bun build --compile --target=bun-darwin-${{ matrix.arch }} src/daemon/tunnel.ts --outfile dist/vpnctl-tunnel
+      - run: ./scripts/codesign-dist.sh
+      # x64 binaries run via Rosetta 2, preinstalled on macos-latest (arm64) runners.
+      - run: ./scripts/smoke-test-dist.sh
+      - name: Package
+        run: tar -czf "vpnctl-darwin-${{ matrix.arch }}.tar.gz" -C dist vpnctl vpnctl-monitor vpnctl-tunnel
+      - uses: actions/upload-artifact@v4
+        with:
+          name: vpnctl-darwin-${{ matrix.arch }}
+          path: vpnctl-darwin-${{ matrix.arch }}.tar.gz
+
+  release:
+    name: Publish release
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          merge-multiple: true
+      - run: gh release create "${{ github.ref_name }}" artifacts/*.tar.gz --title "${{ github.ref_name }}" --generate-notes
+        env:
+          GH_TOKEN: ${{ github.token }}
