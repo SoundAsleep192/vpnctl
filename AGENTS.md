@@ -60,6 +60,9 @@ Before reporting any task done, run on changed files (whole repo for broad chang
   `Co-Authored-By` lines for AI tools.
 - Confirm with the user before committing or pushing — branch/PR creation doesn't
   change that.
+- **Never merge a PR without the user's explicit go-ahead**, even one opened earlier
+  in the same task and even when the task clearly implies the end result should be
+  merged. Merging is always a separate, explicit step.
 
 ## Safety
 
