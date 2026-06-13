@@ -49,4 +49,4 @@ Planned and in-progress work is tracked in
 
 ## License
 
-MIT
+[MIT](LICENSE)
