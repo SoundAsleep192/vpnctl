@@ -57,7 +57,7 @@ This plan covers building `vpnctl` as a **new, separate, open-sourceable repo** 
 
 ## Repo layout
 
-```
+```text
 ~/Projects/vpnctl/
   package.json
   tsconfig.json
