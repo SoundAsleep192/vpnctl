@@ -10,14 +10,22 @@ blocked by default — not allowed through.
 
 ## Requirements
 
-- macOS
-- [Bun](https://bun.sh) >= 1.3.13
+- macOS (Apple Silicon or Intel)
 - [sing-box](https://sing-box.sagernet.org/)
 
 ## Install
 
 ```sh
-bun install
+curl -fsSL https://raw.githubusercontent.com/SoundAsleep192/vpnctl/master/scripts/install.sh | bash
+```
+
+Installs `vpnctl`, `vpnctl-monitor`, and `vpnctl-tunnel` to `~/.local/bin` (override
+with `VPNCTL_INSTALL_DIR`). Add that directory to your `PATH` if prompted, then:
+
+```sh
+brew install sing-box  # if not already installed
+vpnctl setup
+sudo vpnctl install
 ```
 
 ## Usage
@@ -39,6 +47,13 @@ vpnctl audit [--watch <s>] [--log] [--install-agent] [--uninstall-agent]  # snap
 ```
 
 ## Development
+
+Requires [Bun](https://bun.sh) >= 1.3.13.
+
+```sh
+bun install
+bun run bin/vpnctl.ts --help
+```
 
 See [AGENTS.md](AGENTS.md) for code style, testing conventions, and quality gates, and
 [CONTRIBUTING.md](CONTRIBUTING.md) for the git workflow and CI/CD pipeline.
