@@ -2,8 +2,8 @@
 
 `vpnctl` is a Bun + TypeScript CLI: a fail-closed macOS VPN killswitch (pf firewall +
 DNS sinkhole + sing-box VLESS/Reality tunnel) for AI dev tools. No GUI, macOS only.
-See `docs/plan.md` for the original design/build plan and `STATUS.md` for current
-progress against it.
+Planned and in-progress work is tracked in
+[GitHub Issues](https://github.com/SoundAsleep192/vpnctl/issues).
 
 ## Quality gates
 
@@ -71,6 +71,16 @@ touching `core/pf-anchor.ts`, `core/pf-conf-patch.ts`, `core/sinkhole.ts`,
 `core/dns-refresh.ts`, or the daemons: preserve fail-closed behavior (block-by-default
 when the tunnel is down or a lookup fails) and call out explicitly if a change could
 weaken that, even temporarily.
+
+## Implementation notes
+
+- **`vpnctl domains add/remove`** doesn't auto-trigger a refresh. It edits
+  `config.json`/`sing-box.json` and prints a `sudo vpnctl refresh` hint, rather than
+  re-exec'ing under sudo mid-command — that would fire a confusing password prompt
+  from inside a plain config-edit command.
+- **`vpnctl doctor`** requires root (`requireRoot()`) even though it's a read-only
+  diagnostic. The pf/anchor/launchd checks need root to read accurately — without it,
+  `doctor` would report false negatives.
 
 ## Reasoning & confidence
 
