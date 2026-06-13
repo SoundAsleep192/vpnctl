@@ -50,6 +50,11 @@ Before reporting any task done, run on changed files (whole repo for broad chang
   are thin glue over already-tested pieces and aren't directly unit tested.
 - Always add a test when fixing a bug.
 
+## GitHub Issues workflow
+
+- When starting work on an issue, set its Status to **In Progress** on the
+  `vpnctl roadmap` project board (`gh project item-edit`) before making changes.
+
 ## Git workflow
 
 - **GitHub flow**: branch off `master`, open a PR, merge — no direct commits to
