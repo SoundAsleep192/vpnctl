@@ -41,9 +41,25 @@ pull request targeting `master`:
   `vpnctl --help` and `vpnctl setup --uri <test-uri>` against a scratch `$HOME`.
   Run the same script locally before cutting a release.
 
-There is no deploy/release pipeline yet. Once one exists (e.g. publishing compiled
-macOS binaries as GitHub Releases on tag push), it will be added as a separate job
-here and documented in this section. Note that ad-hoc codesigning only satisfies
-`codesign --verify` for locally-built binaries — a binary downloaded as a release
-asset carries the `com.apple.quarantine` xattr and would still need a notarized
-Developer ID signature to run.
+## Releases
+
+Pushing a tag matching `v*` (e.g. `v0.2.0`) triggers
+[`.github/workflows/release.yml`](.github/workflows/release.yml):
+
+1. **`build`** (`macos-latest`, matrix over `arm64`/`x64`) — cross-compiles all
+   three binaries for each architecture with
+   `bun build --compile --target=bun-darwin-<arch>`, ad-hoc codesigns them
+   ([`scripts/codesign-dist.sh`](scripts/codesign-dist.sh)), runs the smoke test
+   ([`scripts/smoke-test-dist.sh`](scripts/smoke-test-dist.sh)) — the `x64` leg runs
+   via Rosetta 2, preinstalled on `macos-latest` (arm64) runners — and packages each
+   architecture's binaries as `vpnctl-darwin-<arch>.tar.gz`.
+2. **`release`** (`ubuntu-latest`) — downloads both tarballs and publishes them as a
+   GitHub Release via `gh release create <tag> --generate-notes`.
+
+To cut a release: bump `version` in `package.json`, merge that to `master`, then tag
+the merge commit and push the tag (`git tag v0.2.0 && git push origin v0.2.0`).
+
+Note that ad-hoc codesigning only satisfies `codesign --verify` for locally-built
+binaries — a binary downloaded as a release asset carries the
+`com.apple.quarantine` xattr and would still need a notarized Developer ID signature
+to run without a Gatekeeper prompt.
