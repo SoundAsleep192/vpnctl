@@ -1,0 +1,1 @@
+lo0 anpi2 anpi0 anpi1 en4 en5 en6 en1 en2 en3 bridge0 en0 utun0 awdl0 llw0 utun1 utun2 utun3 utun5 vmenet0 bridge100 utun4 utun20

@@ -1,0 +1,7 @@
+COMMAND     PID       USER   FD   TYPE             DEVICE SIZE/OFF NODE NAME
+Spotify    1164 nisakhanov   46u  IPv4 0xbf512c749871d656      0t0  TCP 172.19.0.1:59884->34.158.1.133:443 (ESTABLISHED)
+Cursor     2201 nisakhanov   28u  IPv4 0xa1b2c3d4e5f60718      0t0  TCP 172.19.0.1:61010->146.75.36.17:443 (ESTABLISHED)
+Cursor He  2233 nisakhanov   31u  IPv4 0x1122334455667788      0t0  TCP 172.19.0.1:61011->146.75.36.18:443 (ESTABLISHED)
+Code Help  3001 nisakhanov   19u  IPv4 0x99aabbccddeeff00      0t0  TCP 172.19.0.1:61012->140.82.112.3:443 (ESTABLISHED)
+Google     2160 nisakhanov   31u  IPv4 0x87d944ac1b117650      0t0  TCP 127.0.0.1:61034->127.0.0.1:8080 (ESTABLISHED)
+loginwind   400 nisakhanov    9u  IPv6 0x0000000000000001      0t0  TCP [::1]:61050->[::1]:61051 (ESTABLISHED)

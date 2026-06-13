@@ -1,0 +1,5 @@
+table <vpnctl_v4> persist
+table <vpnctl_v6> persist
+
+block drop log quick inet  proto { tcp udp } from any to <vpnctl_v4>
+block drop log quick inet6 proto { tcp udp } from any to <vpnctl_v6>

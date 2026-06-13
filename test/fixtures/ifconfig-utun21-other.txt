@@ -1,0 +1,3 @@
+utun21: flags=8051<UP,POINTOPOINT,RUNNING,MULTICAST> mtu 1380
+	inet 10.8.0.5 --> 10.8.0.5 netmask 0xffffffff
+	nd6 options=201<PERFORMNUD,DAD>

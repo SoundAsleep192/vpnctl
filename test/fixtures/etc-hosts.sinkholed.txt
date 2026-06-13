@@ -1,0 +1,21 @@
+##
+# Host Database
+#
+# localhost is used to configure the loopback interface
+# when the system is booting.  Do not change this entry.
+##
+127.0.0.1		localhost
+255.255.255.255		broadcasthost
+::1                          localhost
+185.199.110.154 github.githubassets.com
+185.199.108.133 raw.githubusercontent.com
+# >>> some-other-tool unrelated-block
+162.159.128.233	example.com
+# <<< some-other-tool unrelated-block
+
+# === BEGIN VPNCTL SINKHOLE ===
+0.0.0.0 api.anthropic.com
+:: api.anthropic.com
+0.0.0.0 claude.ai
+:: claude.ai
+# === END VPNCTL SINKHOLE ===
