@@ -43,8 +43,9 @@ vpnctl audit [--watch <s>] [--log] [--install-agent] [--uninstall-agent]  # snap
 See [AGENTS.md](AGENTS.md) for code style, testing conventions, and quality gates, and
 [CONTRIBUTING.md](CONTRIBUTING.md) for the git workflow and CI/CD pipeline.
 
-- [docs/plan.md](docs/plan.md) — original design/build plan
-- [STATUS.md](STATUS.md) — current progress against the plan
+Planned and in-progress work is tracked in
+[GitHub Issues](https://github.com/SoundAsleep192/vpnctl/issues), grouped by
+[milestone](https://github.com/SoundAsleep192/vpnctl/milestones).
 
 ## License
 
