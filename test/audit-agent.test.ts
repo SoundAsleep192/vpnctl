@@ -4,7 +4,7 @@ import { LAUNCHD_LABEL_AUDIT } from "../src/core/paths";
 
 describe("buildAuditPlist", () => {
   test("runs `vpnctl audit --log` on a StartInterval, without RunAtLoad/KeepAlive", () => {
-    const plist = buildAuditPlist("/Users/nisakhanov/.bun/bin/bun", "/repo/bin/vpnctl.ts");
+    const plist = buildAuditPlist(["/Users/nisakhanov/.bun/bin/bun", "run", "/repo/bin/vpnctl.ts"]);
 
     expect(plist).toEqual({
       label: LAUNCHD_LABEL_AUDIT,
@@ -15,5 +15,11 @@ describe("buildAuditPlist", () => {
       stdoutPath: "/dev/null",
       stderrPath: "/dev/null",
     });
+  });
+
+  test("invokes the compiled vpnctl binary directly with audit --log", () => {
+    const plist = buildAuditPlist(["/opt/homebrew/bin/vpnctl"]);
+
+    expect(plist.programArguments).toEqual(["/opt/homebrew/bin/vpnctl", "audit", "--log"]);
   });
 });

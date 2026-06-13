@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
-import { buildMonitorPlist, buildTunnelPlist, resolveSingBoxPath } from "../src/cli/commands/install";
+import path from "node:path";
+import { buildMonitorPlist, buildTunnelPlist, resolveDaemonBinaryPath, resolveSingBoxPath } from "../src/cli/commands/install";
 import {
   CONFIG_FILE,
   GENERATED_SINGBOX_CONFIG,
@@ -27,9 +28,23 @@ describe("resolveSingBoxPath", () => {
   });
 });
 
+describe("resolveDaemonBinaryPath", () => {
+  test("returns the path next to the running executable when it exists", async () => {
+    const expected = path.join(path.dirname(process.execPath), "vpnctl-monitor");
+    const exists = async (filePath: string): Promise<boolean> => filePath === expected;
+
+    expect(await resolveDaemonBinaryPath("vpnctl-monitor", exists)).toBe(expected);
+  });
+
+  test("throws a helpful error when the binary is missing", async () => {
+    const exists = async (): Promise<boolean> => false;
+    await expect(resolveDaemonBinaryPath("vpnctl-monitor", exists)).rejects.toThrow(/vpnctl-monitor not found/);
+  });
+});
+
 describe("buildMonitorPlist", () => {
   test("runs the monitor source via bun with an explicit --config path", () => {
-    const plist = buildMonitorPlist("/Users/nisakhanov/.bun/bin/bun", "/repo/src/daemon/monitor.ts", CONFIG_FILE);
+    const plist = buildMonitorPlist(["/Users/nisakhanov/.bun/bin/bun", "run", "/repo/src/daemon/monitor.ts"], CONFIG_FILE);
 
     expect(plist).toEqual({
       label: LAUNCHD_LABEL_MONITOR,
@@ -41,13 +56,18 @@ describe("buildMonitorPlist", () => {
       stderrPath: MONITOR_LOG_FILE,
     });
   });
+
+  test("invokes the compiled monitor binary directly with an explicit --config path", () => {
+    const plist = buildMonitorPlist(["/opt/homebrew/bin/vpnctl-monitor"], CONFIG_FILE);
+
+    expect(plist.programArguments).toEqual(["/opt/homebrew/bin/vpnctl-monitor", "--config", CONFIG_FILE]);
+  });
 });
 
 describe("buildTunnelPlist", () => {
   test("runs the tunnel source via bun with --sing-box and --config", () => {
     const plist = buildTunnelPlist(
-      "/Users/nisakhanov/.bun/bin/bun",
-      "/repo/src/daemon/tunnel.ts",
+      ["/Users/nisakhanov/.bun/bin/bun", "run", "/repo/src/daemon/tunnel.ts"],
       "/opt/homebrew/bin/sing-box",
       GENERATED_SINGBOX_CONFIG,
     );
@@ -69,5 +89,17 @@ describe("buildTunnelPlist", () => {
       stdoutPath: TUNNEL_LOG_FILE,
       stderrPath: TUNNEL_LOG_FILE,
     });
+  });
+
+  test("invokes the compiled tunnel binary directly with --sing-box and --config", () => {
+    const plist = buildTunnelPlist(["/opt/homebrew/bin/vpnctl-tunnel"], "/opt/homebrew/bin/sing-box", GENERATED_SINGBOX_CONFIG);
+
+    expect(plist.programArguments).toEqual([
+      "/opt/homebrew/bin/vpnctl-tunnel",
+      "--sing-box",
+      "/opt/homebrew/bin/sing-box",
+      "--config",
+      GENERATED_SINGBOX_CONFIG,
+    ]);
   });
 });

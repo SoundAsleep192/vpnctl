@@ -6,15 +6,16 @@ import type { Exec } from "../../core/exec";
 import { realExec } from "../../core/exec";
 import { installDaemon, renderPlist, uninstallDaemon, type PlistOptions } from "../../core/launchd";
 import { AUDIT_LOG_FILE, AUDIT_PLIST_FILE, LAUNCHD_LABEL_AUDIT } from "../../core/paths";
+import { isCompiledBinary } from "../../core/runtime";
 
 export const AUDIT_AGENT_INTERVAL_SEC = 300;
 const AUDIT_LOG_MAX_BYTES = 1_000_000;
 const AUDIT_LOG_MAX_LINES = 5_000;
 
-export function buildAuditPlist(bunPath: string, vpnctlSourcePath: string): PlistOptions {
+export function buildAuditPlist(invocation: string[]): PlistOptions {
   return {
     label: LAUNCHD_LABEL_AUDIT,
-    programArguments: [bunPath, "run", vpnctlSourcePath, "audit", "--log"],
+    programArguments: [...invocation, "audit", "--log"],
     runAtLoad: false,
     keepAlive: false,
     startIntervalSec: AUDIT_AGENT_INTERVAL_SEC,
@@ -29,16 +30,11 @@ function auditAgentDomain(): `gui/${string}` {
 }
 
 async function installAuditAgent(exec: Exec): Promise<void> {
-  const bunPath = process.execPath;
-  const vpnctlSourcePath = path.resolve(import.meta.dir, "../../../bin/vpnctl.ts");
+  const invocation = isCompiledBinary()
+    ? [process.execPath]
+    : [process.execPath, "run", path.resolve(import.meta.dir, "../../../bin/vpnctl.ts")];
 
-  await installDaemon(
-    exec,
-    LAUNCHD_LABEL_AUDIT,
-    AUDIT_PLIST_FILE,
-    renderPlist(buildAuditPlist(bunPath, vpnctlSourcePath)),
-    auditAgentDomain(),
-  );
+  await installDaemon(exec, LAUNCHD_LABEL_AUDIT, AUDIT_PLIST_FILE, renderPlist(buildAuditPlist(invocation)), auditAgentDomain());
   console.log(`Installed ${AUDIT_PLIST_FILE} — runs \`vpnctl audit --log\` every ${AUDIT_AGENT_INTERVAL_SEC}s.`);
 }
 

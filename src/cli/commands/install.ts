@@ -19,6 +19,7 @@ import {
 } from "../../core/paths";
 import { generateAnchorRules, writeAnchor } from "../../core/pf-anchor";
 import { applyPfConfPatch } from "../../core/pf-conf-patch";
+import { isCompiledBinary } from "../../core/runtime";
 import { buildSingBoxConfig, writeSingBoxConfig } from "../../core/singbox-config";
 import { requireRoot } from "../root";
 
@@ -35,10 +36,21 @@ export async function resolveSingBoxPath(
   );
 }
 
-export function buildMonitorPlist(bunPath: string, monitorSourcePath: string, configPath: string): PlistOptions {
+export async function resolveDaemonBinaryPath(
+  binaryName: string,
+  exists: (filePath: string) => Promise<boolean> = (filePath) => Bun.file(filePath).exists(),
+): Promise<string> {
+  const candidate = path.join(path.dirname(process.execPath), binaryName);
+  if (await exists(candidate)) return candidate;
+  throw new Error(
+    `${binaryName} not found next to ${process.execPath} — reinstall vpnctl (e.g. \`brew reinstall vpnctl\`) so the daemon binaries are present alongside it`,
+  );
+}
+
+export function buildMonitorPlist(invocation: string[], configPath: string): PlistOptions {
   return {
     label: LAUNCHD_LABEL_MONITOR,
-    programArguments: [bunPath, "run", monitorSourcePath, "--config", configPath],
+    programArguments: [...invocation, "--config", configPath],
     runAtLoad: true,
     keepAlive: true,
     throttleIntervalSec: 5,
@@ -47,10 +59,10 @@ export function buildMonitorPlist(bunPath: string, monitorSourcePath: string, co
   };
 }
 
-export function buildTunnelPlist(bunPath: string, tunnelSourcePath: string, singBoxPath: string, singboxConfigPath: string): PlistOptions {
+export function buildTunnelPlist(invocation: string[], singBoxPath: string, singboxConfigPath: string): PlistOptions {
   return {
     label: LAUNCHD_LABEL_TUNNEL,
-    programArguments: [bunPath, "run", tunnelSourcePath, "--sing-box", singBoxPath, "--config", singboxConfigPath],
+    programArguments: [...invocation, "--sing-box", singBoxPath, "--config", singboxConfigPath],
     runAtLoad: true,
     keepAlive: true,
     throttleIntervalSec: 5,
@@ -77,9 +89,12 @@ export async function runInstall(options: InstallOptions = {}): Promise<void> {
   });
   await writeSingBoxConfig(singboxConfig, GENERATED_SINGBOX_CONFIG);
 
-  const bunPath = process.execPath;
-  const monitorSourcePath = path.resolve(import.meta.dir, "../../daemon/monitor.ts");
-  const tunnelSourcePath = path.resolve(import.meta.dir, "../../daemon/tunnel.ts");
+  const monitorInvocation = isCompiledBinary()
+    ? [await resolveDaemonBinaryPath("vpnctl-monitor")]
+    : [process.execPath, "run", path.resolve(import.meta.dir, "../../daemon/monitor.ts")];
+  const tunnelInvocation = isCompiledBinary()
+    ? [await resolveDaemonBinaryPath("vpnctl-tunnel")]
+    : [process.execPath, "run", path.resolve(import.meta.dir, "../../daemon/tunnel.ts")];
   const singBoxPath = await resolveSingBoxPath();
 
   await mkdir(LOG_DIR, { recursive: true });
@@ -102,7 +117,7 @@ export async function runInstall(options: InstallOptions = {}): Promise<void> {
     exec,
     LAUNCHD_LABEL_MONITOR,
     LAUNCHD_PLIST_MONITOR,
-    renderPlist(buildMonitorPlist(bunPath, monitorSourcePath, CONFIG_FILE)),
+    renderPlist(buildMonitorPlist(monitorInvocation, CONFIG_FILE)),
     "system",
   );
 
@@ -111,7 +126,7 @@ export async function runInstall(options: InstallOptions = {}): Promise<void> {
     exec,
     LAUNCHD_LABEL_TUNNEL,
     LAUNCHD_PLIST_TUNNEL,
-    renderPlist(buildTunnelPlist(bunPath, tunnelSourcePath, singBoxPath, GENERATED_SINGBOX_CONFIG)),
+    renderPlist(buildTunnelPlist(tunnelInvocation, singBoxPath, GENERATED_SINGBOX_CONFIG)),
     "system",
   );
 
