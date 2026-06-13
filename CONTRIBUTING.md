@@ -36,7 +36,14 @@ pull request targeting `master`:
   and `bun test`.
 - **`build`** — compiles the CLI and daemon binaries (`bun run build`,
   `bun run build:daemons`) to catch build breakage.
+- **`verify-macos`** — on `macos-latest`, runs [`scripts/verify-dist.sh`](scripts/verify-dist.sh):
+  builds the CLI and daemon binaries, ad-hoc codesigns them, and smoke-tests
+  `vpnctl --help` and `vpnctl setup --uri <test-uri>` against a scratch `$HOME`.
+  Run the same script locally before cutting a release.
 
 There is no deploy/release pipeline yet. Once one exists (e.g. publishing compiled
 macOS binaries as GitHub Releases on tag push), it will be added as a separate job
-here and documented in this section.
+here and documented in this section. Note that ad-hoc codesigning only satisfies
+`codesign --verify` for locally-built binaries — a binary downloaded as a release
+asset carries the `com.apple.quarantine` xattr and would still need a notarized
+Developer ID signature to run.
