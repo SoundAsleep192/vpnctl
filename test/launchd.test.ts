@@ -92,7 +92,7 @@ describe("renderPlist", () => {
 });
 
 describe("installDaemon", () => {
-  test("writes the plist, ignores bootout failure, and bootstraps", async () => {
+  test("writes the plist, ignores bootout failure, re-enables, and bootstraps", async () => {
     const dir = await mkdtemp(path.join(os.tmpdir(), "vpnctl-test-"));
     const plistPath = path.join(dir, "com.vpnctl.monitor.plist");
     const calls: { cmd: string; args: string[] }[] = [];
@@ -109,8 +109,25 @@ describe("installDaemon", () => {
       expect(await readFile(plistPath, "utf8")).toBe("PLIST-CONTENT");
       expect(calls).toEqual([
         { cmd: "/bin/launchctl", args: ["bootout", "system/com.vpnctl.monitor"] },
+        { cmd: "/bin/launchctl", args: ["enable", "system/com.vpnctl.monitor"] },
         { cmd: "/bin/launchctl", args: ["bootstrap", "system", plistPath] },
       ]);
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  test("throws when enable fails", async () => {
+    const dir = await mkdtemp(path.join(os.tmpdir(), "vpnctl-test-"));
+    const plistPath = path.join(dir, "com.vpnctl.monitor.plist");
+
+    try {
+      const exec: Exec = async (_cmd, args): Promise<ExecResult> => {
+        if (args[0] === "enable") return { stdout: "", stderr: "enable failed\n", exitCode: 1 };
+        return { stdout: "", stderr: "", exitCode: 0 };
+      };
+
+      await expect(installDaemon(exec, "com.vpnctl.monitor", plistPath, "PLIST-CONTENT", "system")).rejects.toThrow(/failed to enable/);
     } finally {
       await rm(dir, { recursive: true, force: true });
     }
