@@ -1,3 +1,5 @@
+import { loadConfig } from "../../core/config";
+import { reconcileUntilTunnelState } from "../../core/enforcement";
 import type { Exec } from "../../core/exec";
 import { realExec } from "../../core/exec";
 import { bootstrapDaemon, enableDaemon, isLoaded, kickstart } from "../../core/launchd";
@@ -24,5 +26,12 @@ export async function runUp(options: UpOptions = {}): Promise<void> {
   requireRoot();
 
   const exec = options.exec ?? realExec;
+  const config = await loadConfig();
+
   console.log(await startTunnel(exec));
+
+  const state = await reconcileUntilTunnelState(exec, config, true);
+  if (!state.tunnelUp) {
+    console.log("Tunnel not up yet — traffic to configured domains stays blocked until it connects.");
+  }
 }

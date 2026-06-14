@@ -1,3 +1,5 @@
+import { loadConfig } from "../../core/config";
+import { reconcileUntilTunnelState } from "../../core/enforcement";
 import type { Exec } from "../../core/exec";
 import { realExec } from "../../core/exec";
 import { bootoutDaemon, disableDaemon, isLoaded } from "../../core/launchd";
@@ -23,5 +25,9 @@ export async function runDown(options: DownOptions = {}): Promise<void> {
   requireRoot();
 
   const exec = options.exec ?? realExec;
+  const config = await loadConfig();
+
   console.log(await stopTunnel(exec));
+
+  await reconcileUntilTunnelState(exec, config, false);
 }
