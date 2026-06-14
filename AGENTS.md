@@ -1,7 +1,14 @@
 # Agent instructions for vpnctl
 
-`vpnctl` is a Bun + TypeScript CLI: a fail-closed macOS VPN killswitch (pf firewall +
-DNS sinkhole + sing-box VLESS/Reality tunnel) for AI dev tools. No GUI, macOS only.
+`vpnctl` is a Bun + TypeScript fail-closed VPN killswitch (pf firewall + DNS sinkhole +
+sing-box VLESS/Reality tunnel) for AI dev tools. **v1 is CLI-only, macOS-only** — that
+was a staged-rollout choice to get a working core shipped first, not a permanent
+constraint. Cross-platform support (Linux/WSL, Windows) and a UI surface beyond the
+CLI (status indicator, interactive TUI, eventually a full GUI) are planned and tracked
+in GitHub Issues — don't treat "CLI-only" or "macOS-only" as architectural rules when
+designing new work. The one real constraint: stay on Bun + TypeScript (Rust is the
+agreed fallback only if Bun hard-blocks cross-platform daemon support — not Swift,
+not an open-ended language/framework survey).
 Planned and in-progress work is tracked in
 [GitHub Issues](https://github.com/SoundAsleep192/vpnctl/issues).
 
