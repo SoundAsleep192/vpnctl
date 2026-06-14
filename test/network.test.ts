@@ -20,6 +20,8 @@ import {
   readPidFile,
   resolveCountry,
   resolvePublicIp,
+  type TunnelState,
+  tunnelStateChanged,
 } from "../src/core/network";
 import { sampleConfig } from "./fixtures/sing-box-config.sample";
 
@@ -375,6 +377,29 @@ describe("getTunnelState", () => {
     } finally {
       await cleanup();
     }
+  });
+});
+
+describe("tunnelStateChanged", () => {
+  const up: TunnelState = { trustedIface: "utun20", publicIface: "utun20", tunnelUp: true };
+  const down: TunnelState = { trustedIface: null, publicIface: null, tunnelUp: false };
+
+  test("true when there is no previous state", () => {
+    expect(tunnelStateChanged(null, up)).toBe(true);
+  });
+
+  test("false when trustedIface and tunnelUp are unchanged, even if publicIface differs", () => {
+    const previous: TunnelState = { ...up, publicIface: "en0" };
+    expect(tunnelStateChanged(previous, up)).toBe(false);
+  });
+
+  test("true when tunnelUp changes", () => {
+    const previous: TunnelState = { ...up, tunnelUp: false };
+    expect(tunnelStateChanged(previous, up)).toBe(true);
+  });
+
+  test("true when trustedIface changes", () => {
+    expect(tunnelStateChanged(down, up)).toBe(true);
   });
 });
 

@@ -5,7 +5,7 @@ import { loadConfig } from "../core/config";
 import { resolveAll, writeTable } from "../core/dns-refresh";
 import type { Exec } from "../core/exec";
 import { realExec } from "../core/exec";
-import { getTunnelState } from "../core/network";
+import { getTunnelState, tunnelStateChanged, type TunnelState } from "../core/network";
 import { CACHE_V4_FILE, CACHE_V6_FILE, CONFIG_FILE, HOSTS_FILE, PF_TABLE_V4, PF_TABLE_V6, TUNNEL_PID_FILE } from "../core/paths";
 import { generateAnchorRules, writeAnchor } from "../core/pf-anchor";
 import { applyHosts, computeHosts } from "../core/sinkhole";
@@ -29,9 +29,15 @@ function parseArgs(argv: string[]): { configPath: string; singboxConfigPath: str
   return { configPath, singboxConfigPath: path.join(path.dirname(configPath), "sing-box.json") };
 }
 
-export async function tickSinkholeAndAnchor(exec: Exec, config: Config, singboxConfigPath: string): Promise<void> {
+export async function tickSinkholeAndAnchor(
+  exec: Exec,
+  config: Config,
+  singboxConfigPath: string,
+  previousState: TunnelState | null,
+): Promise<TunnelState> {
   const singboxConfig = await readSingBoxConfig(singboxConfigPath);
-  const { trustedIface, tunnelUp } = await getTunnelState(exec, singboxConfig, TUNNEL_PID_FILE);
+  const state = await getTunnelState(exec, singboxConfig, TUNNEL_PID_FILE);
+  const { trustedIface, tunnelUp } = state;
 
   const currentHosts = await Bun.file(HOSTS_FILE).text();
   const { content, changed } = computeHosts(currentHosts, config.domains, !tunnelUp);
@@ -39,7 +45,11 @@ export async function tickSinkholeAndAnchor(exec: Exec, config: Config, singboxC
 
   await writeAnchor(exec, generateAnchorRules({ trustedIface }));
 
-  log(`sinkhole ${tunnelUp ? "cleared" : "applied"} (trustedIface=${trustedIface ?? "none"})`);
+  if (tunnelStateChanged(previousState, state)) {
+    log(`sinkhole ${tunnelUp ? "cleared" : "applied"} (trustedIface=${trustedIface ?? "none"})`);
+  }
+
+  return state;
 }
 
 export async function tickRefresh(exec: Exec, config: Config): Promise<void> {
@@ -77,9 +87,11 @@ async function main(): Promise<void> {
 
   log("monitor daemon starting");
 
+  let tunnelState: TunnelState | null = null;
+
   const runTick = async (): Promise<void> => {
     try {
-      await tickSinkholeAndAnchor(exec, config, singboxConfigPath);
+      tunnelState = await tickSinkholeAndAnchor(exec, config, singboxConfigPath, tunnelState);
     } catch (error) {
       log(`ERROR sinkhole/anchor tick: ${(error as Error).message}`);
     }

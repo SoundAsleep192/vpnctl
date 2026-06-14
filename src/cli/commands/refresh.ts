@@ -16,5 +16,5 @@ export async function runRefresh(options: RefreshOptions = {}): Promise<void> {
   const config = await loadConfig();
 
   await tickRefresh(exec, config);
-  await tickSinkholeAndAnchor(exec, config, GENERATED_SINGBOX_CONFIG);
+  await tickSinkholeAndAnchor(exec, config, GENERATED_SINGBOX_CONFIG, null);
 }
