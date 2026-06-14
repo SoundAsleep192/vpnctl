@@ -1,7 +1,7 @@
 import type { Exec } from "../../core/exec";
 import { realExec } from "../../core/exec";
 import { isLoaded } from "../../core/launchd";
-import { getPublicInterface, getTrustedInterface, isSingBoxRunning, resolvePublicIp } from "../../core/network";
+import { getTunnelState, isSingBoxRunning, resolvePublicIp } from "../../core/network";
 import {
   GENERATED_SINGBOX_CONFIG,
   HOSTS_FILE,
@@ -57,8 +57,7 @@ export async function gatherStatus(
   includeIp = false,
   pidFile: string = TUNNEL_PID_FILE,
 ): Promise<StatusResult> {
-  const trustedInterface = await getTrustedInterface(exec, singboxConfig, pidFile);
-  const publicInterface = await getPublicInterface(exec);
+  const { trustedIface: trustedInterface, publicIface: publicInterface, tunnelUp } = await getTunnelState(exec, singboxConfig, pidFile);
 
   return {
     pfEnabled: await isPfEnabled(exec),
@@ -67,7 +66,7 @@ export async function gatherStatus(
     tableV6Count: await countTable(exec, PF_TABLE_V6),
     trustedInterface,
     publicInterface,
-    tunnelUp: trustedInterface !== null && trustedInterface === publicInterface,
+    tunnelUp,
     singBoxRunning: await isSingBoxRunning(exec, pidFile),
     monitorDaemonLoaded: await isLoaded(exec, LAUNCHD_LABEL_MONITOR, "system"),
     tunnelDaemonLoaded: await isLoaded(exec, LAUNCHD_LABEL_TUNNEL, "system"),

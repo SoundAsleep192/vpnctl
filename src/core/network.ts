@@ -104,6 +104,21 @@ export async function isTunnelUp(exec: Exec, singboxConfig: unknown, pidFile: st
   return isTunnelUpByRoute(exec, singboxConfig);
 }
 
+export interface TunnelState {
+  trustedIface: string | null;
+  publicIface: string | null;
+  tunnelUp: boolean;
+}
+
+// trustedIface and tunnelUp must be derived from the same pair of lookups —
+// computing them via separate isTunnelUp()/getTrustedInterface() calls let
+// the pf anchor and the DNS sinkhole disagree on which interface is trusted.
+export async function getTunnelState(exec: Exec, singboxConfig: unknown, pidFile: string): Promise<TunnelState> {
+  const trustedIface = await getTrustedInterface(exec, singboxConfig, pidFile);
+  const publicIface = await getPublicInterface(exec);
+  return { trustedIface, publicIface, tunnelUp: trustedIface !== null && trustedIface === publicIface };
+}
+
 export async function resolvePublicIp(exec: Exec): Promise<string | null> {
   const result = await exec("/usr/bin/dig", ["+short", "myip.opendns.com", "@resolver1.opendns.com"]);
   const ip = result.stdout.trim();
