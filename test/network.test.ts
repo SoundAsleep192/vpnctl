@@ -12,6 +12,7 @@ import {
   getTrustedInterface,
   getTrustedInterfaceByRoute,
   getTunIpFromConfig,
+  getTunnelState,
   isSingBoxRunning,
   isTunnelUp,
   isTunnelUpByRoute,
@@ -304,6 +305,73 @@ describe("isTunnelUp", () => {
         "/sbin/route -n get 8.8.8.8": ROUTE_GET_8_8_8_8_NO_TUNNEL,
       });
       expect(await isTunnelUp(exec, sampleConfig, pidFile)).toBe(false);
+    } finally {
+      await cleanup();
+    }
+  });
+});
+
+describe("getTunnelState", () => {
+  let pidFile: string;
+  let dir: string;
+
+  const setup = async () => {
+    dir = await mkdtemp(path.join(os.tmpdir(), "vpnctl-test-"));
+    pidFile = path.join(dir, "tunnel.pid");
+    await writeFile(pidFile, "4242\n");
+  };
+  const cleanup = async () => rm(dir, { recursive: true, force: true });
+
+  test("trustedIface and tunnelUp agree when the trusted interface is also the public interface", async () => {
+    await setup();
+    try {
+      const exec = makeExec({
+        "/bin/kill -0 4242": { stdout: "", stderr: "", exitCode: 0 },
+        "/sbin/route -n get 172.19.0.1": ROUTE_GET_172_19_0_1_VIA_UTUN20,
+        "/sbin/route -n get 1.1.1.1": fixture("route-get-1.1.1.1-tunnel.txt"),
+      });
+      expect(await getTunnelState(exec, sampleConfig, pidFile)).toEqual({
+        trustedIface: "utun20",
+        publicIface: "utun20",
+        tunnelUp: true,
+      });
+    } finally {
+      await cleanup();
+    }
+  });
+
+  test("trustedIface is null and tunnelUp is false when sing-box is not running", async () => {
+    await setup();
+    try {
+      const exec = makeExec({
+        "/bin/kill -0 4242": { stdout: "", stderr: "", exitCode: 1 },
+        "/sbin/route -n get 1.1.1.1": fixture("route-get-1.1.1.1-no-tunnel.txt"),
+        "/sbin/route -n get 8.8.8.8": ROUTE_GET_8_8_8_8_NO_TUNNEL,
+      });
+      expect(await getTunnelState(exec, sampleConfig, pidFile)).toEqual({
+        trustedIface: null,
+        publicIface: null,
+        tunnelUp: false,
+      });
+    } finally {
+      await cleanup();
+    }
+  });
+
+  test("a stale trusted interface is reported as down, never as trustedIface=null with tunnelUp=true", async () => {
+    await setup();
+    try {
+      const exec = makeExec({
+        "/bin/kill -0 4242": { stdout: "", stderr: "", exitCode: 0 },
+        "/sbin/route -n get 172.19.0.1": ROUTE_GET_172_19_0_1_VIA_UTUN20,
+        "/sbin/route -n get 1.1.1.1": fixture("route-get-1.1.1.1-no-tunnel.txt"),
+        "/sbin/route -n get 8.8.8.8": ROUTE_GET_8_8_8_8_NO_TUNNEL,
+      });
+      expect(await getTunnelState(exec, sampleConfig, pidFile)).toEqual({
+        trustedIface: "utun20",
+        publicIface: null,
+        tunnelUp: false,
+      });
     } finally {
       await cleanup();
     }
