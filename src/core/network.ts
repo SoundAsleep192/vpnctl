@@ -119,6 +119,10 @@ export async function getTunnelState(exec: Exec, singboxConfig: unknown, pidFile
   return { trustedIface, publicIface, tunnelUp: trustedIface !== null && trustedIface === publicIface };
 }
 
+export function tunnelStateChanged(previous: TunnelState | null, current: TunnelState): boolean {
+  return previous === null || previous.trustedIface !== current.trustedIface || previous.tunnelUp !== current.tunnelUp;
+}
+
 export async function resolvePublicIp(exec: Exec): Promise<string | null> {
   const result = await exec("/usr/bin/dig", ["+short", "myip.opendns.com", "@resolver1.opendns.com"]);
   const ip = result.stdout.trim();
