@@ -3,13 +3,11 @@ import path from "node:path";
 import type { Config } from "../core/config";
 import { loadConfig } from "../core/config";
 import { resolveAll, writeTable } from "../core/dns-refresh";
+import { reconcileTunnelState } from "../core/enforcement";
 import type { Exec } from "../core/exec";
 import { realExec } from "../core/exec";
-import { getTunnelState, tunnelStateChanged, type TunnelState } from "../core/network";
-import { CACHE_V4_FILE, CACHE_V6_FILE, CONFIG_FILE, HOSTS_FILE, PF_TABLE_V4, PF_TABLE_V6, TUNNEL_PID_FILE } from "../core/paths";
-import { generateAnchorRules, writeAnchor } from "../core/pf-anchor";
-import { applyHosts, computeHosts } from "../core/sinkhole";
-import { readSingBoxConfig } from "../core/singbox-config";
+import { tunnelStateChanged, type TunnelState } from "../core/network";
+import { CACHE_V4_FILE, CACHE_V6_FILE, CONFIG_FILE, PF_TABLE_V4, PF_TABLE_V6 } from "../core/paths";
 
 const SINKHOLE_TICK_MS = 5_000;
 const REFRESH_TICK_MS = 10 * 60 * 1000;
@@ -35,18 +33,10 @@ export async function tickSinkholeAndAnchor(
   singboxConfigPath: string,
   previousState: TunnelState | null,
 ): Promise<TunnelState> {
-  const singboxConfig = await readSingBoxConfig(singboxConfigPath);
-  const state = await getTunnelState(exec, singboxConfig, TUNNEL_PID_FILE);
-  const { trustedIface, tunnelUp } = state;
-
-  const currentHosts = await Bun.file(HOSTS_FILE).text();
-  const { content, changed } = computeHosts(currentHosts, config.domains, !tunnelUp);
-  if (changed) await applyHosts(exec, content);
-
-  await writeAnchor(exec, generateAnchorRules({ trustedIface }));
+  const state = await reconcileTunnelState(exec, config, singboxConfigPath);
 
   if (tunnelStateChanged(previousState, state)) {
-    log(`sinkhole ${tunnelUp ? "cleared" : "applied"} (trustedIface=${trustedIface ?? "none"})`);
+    log(`sinkhole ${state.tunnelUp ? "cleared" : "applied"} (trustedIface=${state.trustedIface ?? "none"})`);
   }
 
   return state;
