@@ -9,8 +9,23 @@ permissions:
   contents: write
 
 jobs:
+  e2e:
+    name: Structural E2E (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        # macos-14 = arm64, macos-15-intel = x86_64 (macos-13 retired 2025-12-04).
+        os: [macos-14, macos-15-intel]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/e2e-macos
+        with:
+          scenario: all
+
   build:
     name: Build macOS binaries (${{ matrix.arch }})
+    needs: e2e
     runs-on: macos-latest
     strategy:
       matrix:

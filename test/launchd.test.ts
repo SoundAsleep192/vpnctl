@@ -7,6 +7,7 @@ import {
   BOOTSTRAP_TEARDOWN_RETRY_ATTEMPTS,
   bootoutDaemon,
   bootstrapDaemon,
+  bootstrapTeardownRetryDelayMs,
   disableDaemon,
   enableDaemon,
   installDaemon,
@@ -142,6 +143,42 @@ describe("installDaemon", () => {
     } finally {
       await rm(dir, { recursive: true, force: true });
     }
+  });
+
+  test("backs off between teardown retries with a capped linear delay", async () => {
+    const dir = await mkdtemp(path.join(os.tmpdir(), "vpnctl-test-"));
+    const plistPath = path.join(dir, "com.vpnctl.monitor.plist");
+    const sleeps: number[] = [];
+    const recordingSleep = (ms: number): Promise<void> => {
+      sleeps.push(ms);
+      return Promise.resolve();
+    };
+
+    try {
+      const exec: Exec = async (_cmd, args): Promise<ExecResult> => {
+        if (args[0] === "bootstrap") {
+          return { stdout: "", stderr: "Bootstrap failed: 5: Input/output error\n", exitCode: 1 };
+        }
+        return { stdout: "", stderr: "", exitCode: 0 };
+      };
+
+      await expect(installDaemon(exec, "com.vpnctl.monitor", plistPath, "PLIST-CONTENT", "system", recordingSleep)).rejects.toThrow(
+        /failed to bootstrap/,
+      );
+
+      expect(sleeps.slice(0, 4)).toEqual([500, 1000, 1500, 1500]);
+      expect(Math.max(...sleeps)).toBe(1500);
+      expect(sleeps.length).toBe(BOOTSTRAP_TEARDOWN_RETRY_ATTEMPTS - 1);
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  test("computes a capped linear backoff delay", () => {
+    expect(bootstrapTeardownRetryDelayMs(1)).toBe(500);
+    expect(bootstrapTeardownRetryDelayMs(2)).toBe(1000);
+    expect(bootstrapTeardownRetryDelayMs(3)).toBe(1500);
+    expect(bootstrapTeardownRetryDelayMs(10)).toBe(1500);
   });
 
   test("gives up after exhausting teardown retries and throws", async () => {
