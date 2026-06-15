@@ -57,6 +57,35 @@ Before reporting any task done, run on changed files (whole repo for broad chang
   are thin glue over already-tested pieces and aren't directly unit tested.
 - Always add a test when fixing a bug.
 
+### E2E tier (`scripts/e2e/`)
+
+Unit tests with fake `Exec` (L0) are structurally blind to launchd/pf/dns timing
+— the bug that motivated this tier (#44's EIO-5 redeploy race) was invisible to
+them by construction. The L1 tier runs the real CLI against real
+`launchctl`/`pfctl`/`dscacheutil`/`/etc/hosts` on disposable macOS environments
+(GitHub `macos-14`/`macos-13` runners in CI; a throwaway VM locally).
+
+- `scripts/e2e/lib/assert.sh` — the single source of truth for what a healthy /
+  fail-closed system looks like (daemon state, pf enabled, anchor loaded,
+  sinkhole present, the tunnel-down⇒domain-blocked invariant). Shared by every
+  scenario **and** by the local `scripts/e2e-local.sh`. Its marker/label literals
+  mirror `src/core/paths.ts` — keep them in sync.
+- `scripts/e2e/scenarios/*.sh` — one scenario per lifecycle concern
+  (`structural`, `update-race`). `scripts/e2e/run.sh` is the entrypoint the CI
+  workflow calls; the workflow itself contains no test logic.
+- **Each future daemon/pf/dns issue adds one E2E scenario here** that would have
+  caught the bug, mirroring the unit-test "add a test when fixing a bug" rule.
+- Scenarios are **destructive** (mutate pf, `/etc/hosts`, system LaunchDaemons) —
+  never run `scripts/e2e/scenarios/*` or `run.sh` on a machine you care about.
+  `scripts/e2e-local.sh` is the only harness safe on an installed machine: it
+  backs up and restores your real binaries around an `update` test.
+- CI gating: on by default for every PR (opt out of a trivial PR with the
+  `skip-e2e` label, mediated by the `e2e-gate` required check); forced and
+  un-skippable before any release.
+- **Live-tunnel tier** (real VLESS/Reality endpoint + secrets, validating the
+  actual handshake + routed egress) is a planned follow-up, out of scope for the
+  structural tier.
+
 ## GitHub Issues workflow
 
 - When starting work on an issue, set its Status to **In Progress** on the

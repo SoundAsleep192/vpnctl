@@ -1,0 +1,46 @@
+name: E2E (macOS)
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+
+# Structural E2E runs on real macOS runners (arm64 + x64), validating both
+# release assets. On by default for every PR; opt out of a trivial PR by adding
+# the `skip-e2e` label. The `e2e-gate` job below is the required status check —
+# it stays green when E2E passes OR is opted out, so a skipped matrix job never
+# leaves the required check stuck "pending".
+jobs:
+  e2e:
+    name: Structural E2E (${{ matrix.os }})
+    if: github.event_name != 'pull_request' || !contains(github.event.pull_request.labels.*.name, 'skip-e2e')
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-14, macos-13]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/e2e-macos
+        with:
+          scenario: all
+
+  e2e-gate:
+    name: E2E gate
+    needs: [e2e]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require E2E success or explicit opt-out
+        run: |
+          result="${{ needs.e2e.result }}"
+          if [ "$result" = "failure" ] || [ "$result" = "cancelled" ]; then
+            echo "E2E failed (result: $result)." >&2
+            exit 1
+          fi
+          if [ "$result" = "skipped" ]; then
+            echo "E2E skipped via skip-e2e opt-out — gate passing."
+          else
+            echo "E2E passed (result: $result)."
+          fi
