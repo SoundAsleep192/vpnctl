@@ -15,6 +15,7 @@ import { runStatus } from "../src/cli/commands/status";
 import { runUninstall } from "../src/cli/commands/uninstall";
 import { runUp } from "../src/cli/commands/up";
 import { runUpdate } from "../src/cli/commands/update";
+import { runWrapAdd, runWrapList, runWrapRemove } from "../src/cli/commands/wrap";
 
 const program = new Command();
 
@@ -136,6 +137,34 @@ program
   .description("run diagnostics on bun, config, sing-box binary, pf, and daemons (requires root)")
   .action(async () => {
     await runDoctor();
+  });
+
+const wrapCommand = program.command("wrap").description("manage shell wrappers that route commands through `vpnctl exec`");
+
+wrapCommand
+  .command("add")
+  .description("generate a shell wrapper for each command in ~/.local/bin (or --dir)")
+  .argument("<command...>", "one or more command names to wrap, e.g. claude codex")
+  .option("--dir <path>", "directory to write wrappers into (default: ~/.local/bin)")
+  .action(async (commands: string[], opts: { dir?: string }) => {
+    await runWrapAdd(commands, { dir: opts.dir });
+  });
+
+wrapCommand
+  .command("remove")
+  .description("remove vpnctl-managed shell wrappers")
+  .argument("<command...>", "one or more wrapper names to remove")
+  .option("--dir <path>", "directory containing the wrappers (default: ~/.local/bin)")
+  .action(async (commands: string[], opts: { dir?: string }) => {
+    await runWrapRemove(commands, { dir: opts.dir });
+  });
+
+wrapCommand
+  .command("list")
+  .description("list vpnctl-managed shell wrappers")
+  .option("--dir <path>", "directory to scan (default: ~/.local/bin)")
+  .action(async (opts: { dir?: string }) => {
+    await runWrapList({ dir: opts.dir });
   });
 
 program
