@@ -72,6 +72,8 @@ assert "monitor daemon still running after down" daemon_running "$LAUNCHD_LABEL_
 assert_failclosed_invariant
 poll_assert "sinkhole present after down" sinkhole_present
 poll_assert "probe domain '$SINKHOLE_PROBE_DOMAIN' resolves to sink (tunnel down)" domain_sinkholed
+assert "status shows killswitch notice when tunnel is down" bash -c "sudo \"\$VPNCTL_BIN\" status | grep -qF 'killswitch protection'"
+assert "exec shows killswitch notice when tunnel is down" bash -c "sudo \"\$VPNCTL_BIN\" exec -- true 2>&1 | grep -qF 'killswitch protection'"
 
 echo
 echo "-- refresh --"

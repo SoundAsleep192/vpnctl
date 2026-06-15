@@ -1,6 +1,8 @@
 import pkg from "../../../package.json";
+import { loadConfig } from "../../core/config";
 import type { Exec } from "../../core/exec";
 import { realExec } from "../../core/exec";
+import { formatKillswitchNotice } from "../../core/killswitch-notice";
 import { isLoaded } from "../../core/launchd";
 import { getTunnelState, isSingBoxRunning, resolvePublicIp } from "../../core/network";
 import {
@@ -132,4 +134,10 @@ export async function runStatus(options: StatusOptions = {}): Promise<void> {
 
   const status = await gatherStatus(exec, singboxConfig, hostsContent, options.ip);
   console.log(formatStatus(status));
+
+  const domains = await loadConfig()
+    .then((config) => config.domains)
+    .catch(() => []);
+  const notice = formatKillswitchNotice(domains, status.tunnelUp);
+  if (notice !== null) console.log(`\n${notice}`);
 }

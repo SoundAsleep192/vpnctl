@@ -2,6 +2,7 @@ import { loadConfig } from "../../core/config";
 import { reconcileUntilTunnelState } from "../../core/enforcement";
 import type { Exec } from "../../core/exec";
 import { realExec } from "../../core/exec";
+import { formatKillswitchNotice } from "../../core/killswitch-notice";
 import { bootoutDaemon, disableDaemon, isLoaded } from "../../core/launchd";
 import { LAUNCHD_LABEL_TUNNEL } from "../../core/paths";
 import { requireRoot } from "../root";
@@ -29,5 +30,8 @@ export async function runDown(options: DownOptions = {}): Promise<void> {
 
   console.log(await stopTunnel(exec));
 
-  await reconcileUntilTunnelState(exec, config, false);
+  const state = await reconcileUntilTunnelState(exec, config, false);
+
+  const notice = formatKillswitchNotice(config.domains, state.tunnelUp);
+  if (notice !== null) console.log(`\n${notice}`);
 }

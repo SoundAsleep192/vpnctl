@@ -1,6 +1,7 @@
 import { loadConfig } from "../../core/config";
 import type { Exec } from "../../core/exec";
 import { realExec } from "../../core/exec";
+import { formatKillswitchNotice } from "../../core/killswitch-notice";
 import { getPublicInterface, isTunnelUp } from "../../core/network";
 import { GENERATED_SINGBOX_CONFIG, TUNNEL_PID_FILE } from "../../core/paths";
 import { readSingBoxConfig } from "../../core/singbox-config";
@@ -81,6 +82,11 @@ export async function runCheck(options: CheckOptions = {}): Promise<void> {
   const singboxConfig = await readSingBoxConfig(GENERATED_SINGBOX_CONFIG);
 
   if (!(await isTunnelUp(exec, singboxConfig, TUNNEL_PID_FILE))) {
+    const domains = await loadConfig()
+      .then((config) => config.domains)
+      .catch(() => []);
+    const notice = formatKillswitchNotice(domains, false);
+    if (notice !== null) console.error(notice);
     throw new Error("tunnel is down (public route is not via the tunnel interface) — run `sudo vpnctl up`");
   }
 

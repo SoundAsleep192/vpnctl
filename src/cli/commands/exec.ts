@@ -1,6 +1,7 @@
 import { loadConfig } from "../../core/config";
 import type { Exec } from "../../core/exec";
 import { realExec } from "../../core/exec";
+import { formatKillswitchNotice } from "../../core/killswitch-notice";
 import { getPublicInterface, isTunnelUpByRoute, resolveCountry, resolvePublicIp } from "../../core/network";
 import { GENERATED_SINGBOX_CONFIG } from "../../core/paths";
 import { readSingBoxConfig } from "../../core/singbox-config";
@@ -9,14 +10,17 @@ export interface PreflightResult {
   ok: boolean;
   reason?: string;
   publicInterface: string | null;
+  tunnelUp: boolean;
 }
 
 export async function preflight(exec: Exec, singboxConfig: unknown, blockedCountries: string[]): Promise<PreflightResult> {
-  if (!(await isTunnelUpByRoute(exec, singboxConfig))) {
+  const tunnelUp = await isTunnelUpByRoute(exec, singboxConfig);
+  if (!tunnelUp) {
     return {
       ok: false,
       reason: "tunnel is down or default route is not via the tunnel interface — run `sudo vpnctl up`",
       publicInterface: null,
+      tunnelUp: false,
     };
   }
 
@@ -25,20 +29,20 @@ export async function preflight(exec: Exec, singboxConfig: unknown, blockedCount
   if (blockedCountries.length > 0) {
     const ip = await resolvePublicIp(exec);
     if (ip === null) {
-      return { ok: false, reason: "could not resolve public IP for geo check", publicInterface };
+      return { ok: false, reason: "could not resolve public IP for geo check", publicInterface, tunnelUp };
     }
 
     const country = await resolveCountry(exec, ip);
     if (country === null) {
-      return { ok: false, reason: `could not determine country for IP ${ip}`, publicInterface };
+      return { ok: false, reason: `could not determine country for IP ${ip}`, publicInterface, tunnelUp };
     }
 
     if (blockedCountries.includes(country)) {
-      return { ok: false, reason: `public IP ${ip} is in a blocked country (${country})`, publicInterface };
+      return { ok: false, reason: `public IP ${ip} is in a blocked country (${country})`, publicInterface, tunnelUp };
     }
   }
 
-  return { ok: true, publicInterface };
+  return { ok: true, publicInterface, tunnelUp };
 }
 
 export interface ExecCommandOptions {
@@ -52,6 +56,8 @@ export async function runExec(command: string[], options: ExecCommandOptions = {
 
   const result = await preflight(exec, singboxConfig, config.exec.blockedCountries);
   if (!result.ok) {
+    const notice = formatKillswitchNotice(config.domains, result.tunnelUp);
+    if (notice !== null) console.error(notice);
     throw new Error(result.reason);
   }
 

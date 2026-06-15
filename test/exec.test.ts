@@ -38,6 +38,7 @@ describe("preflight", () => {
     expect(result.ok).toBe(false);
     expect(result.reason).toMatch(/tunnel is down/);
     expect(result.publicInterface).toBeNull();
+    expect(result.tunnelUp).toBe(false);
   });
 
   test("succeeds when the tunnel is up and no countries are blocked", async () => {
@@ -46,6 +47,7 @@ describe("preflight", () => {
 
     expect(result.ok).toBe(true);
     expect(result.publicInterface).toBe("utun20");
+    expect(result.tunnelUp).toBe(true);
   });
 
   test("fails when the public IP cannot be resolved for the geo check", async () => {
@@ -58,6 +60,7 @@ describe("preflight", () => {
     expect(result.ok).toBe(false);
     expect(result.reason).toMatch(/could not resolve public IP/);
     expect(result.publicInterface).toBe("utun20");
+    expect(result.tunnelUp).toBe(true);
   });
 
   test("fails when the country for the resolved IP cannot be determined", async () => {
@@ -70,6 +73,7 @@ describe("preflight", () => {
 
     expect(result.ok).toBe(false);
     expect(result.reason).toMatch(/could not determine country for IP 203\.0\.113\.7/);
+    expect(result.tunnelUp).toBe(true);
   });
 
   test("fails when the resolved country is in the blocked list", async () => {
@@ -82,6 +86,7 @@ describe("preflight", () => {
 
     expect(result.ok).toBe(false);
     expect(result.reason).toMatch(/blocked country \(RU\)/);
+    expect(result.tunnelUp).toBe(true);
   });
 
   test("succeeds when the resolved country is not in the blocked list", async () => {
@@ -94,5 +99,6 @@ describe("preflight", () => {
 
     expect(result.ok).toBe(true);
     expect(result.publicInterface).toBe("utun20");
+    expect(result.tunnelUp).toBe(true);
   });
 });
