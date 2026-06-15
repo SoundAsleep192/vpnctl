@@ -3,9 +3,18 @@ import { loadConfig } from "../../core/config";
 import type { Exec } from "../../core/exec";
 import { realExec } from "../../core/exec";
 import { isLoaded } from "../../core/launchd";
-import { CONFIG_FILE, GENERATED_SINGBOX_CONFIG, LAUNCHD_LABEL_MONITOR, LAUNCHD_LABEL_TUNNEL, PF_ANCHOR_NAME } from "../../core/paths";
+import {
+  CONFIG_FILE,
+  GENERATED_SINGBOX_CONFIG,
+  LAUNCHD_LABEL_MONITOR,
+  LAUNCHD_LABEL_TUNNEL,
+  PF_ANCHOR_NAME,
+  UPDATE_CHECK_CACHE_FILE,
+} from "../../core/paths";
+import { compareVersions } from "../../core/version";
 import { requireRoot } from "../root";
 import { resolveSingBoxPath } from "./install";
+import { getLatestVersion } from "./update";
 
 const MIN_BUN_VERSION = pkg.engines.bun.replace(/^>=/, "");
 
@@ -15,18 +24,6 @@ export interface DoctorCheck {
   name: string;
   status: DoctorStatus;
   detail: string;
-}
-
-export function compareVersions(a: string, b: string): number {
-  const partsA = a.split(".").map(Number);
-  const partsB = b.split(".").map(Number);
-
-  for (let i = 0; i < Math.max(partsA.length, partsB.length); i++) {
-    const diff = (partsA[i] ?? 0) - (partsB[i] ?? 0);
-    if (diff !== 0) return diff;
-  }
-
-  return 0;
 }
 
 export function checkBunVersion(version: string, minVersion: string = MIN_BUN_VERSION): DoctorCheck {
@@ -84,6 +81,21 @@ export async function checkDaemon(exec: Exec, label: string): Promise<DoctorChec
   return { name: label, status: loaded ? "ok" : "warn", detail: loaded ? "loaded" : "not loaded" };
 }
 
+export async function checkForUpdate(
+  exec: Exec,
+  currentVersion: string = pkg.version,
+  cachePath: string = UPDATE_CHECK_CACHE_FILE,
+): Promise<DoctorCheck> {
+  const latestVersion = await getLatestVersion(exec, cachePath);
+  if (latestVersion === null) {
+    return { name: "update", status: "ok", detail: `unable to check for updates — currently v${currentVersion}` };
+  }
+
+  return compareVersions(latestVersion, currentVersion) > 0
+    ? { name: "update", status: "warn", detail: `v${latestVersion} available — run \`vpnctl update\`` }
+    : { name: "update", status: "ok", detail: `up to date (v${currentVersion})` };
+}
+
 const STATUS_LABEL: Record<DoctorStatus, string> = { ok: "OK  ", warn: "WARN", fail: "FAIL" };
 
 export function formatDoctorReport(checks: DoctorCheck[]): string {
@@ -122,6 +134,7 @@ export async function runDoctor(options: DoctorOptions = {}): Promise<void> {
     await checkAnchorLoaded(exec),
     await checkDaemon(exec, LAUNCHD_LABEL_MONITOR),
     await checkDaemon(exec, LAUNCHD_LABEL_TUNNEL),
+    await checkForUpdate(exec),
   ];
 
   console.log(formatDoctorReport(checks));

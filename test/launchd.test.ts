@@ -4,6 +4,7 @@ import os from "node:os";
 import path from "node:path";
 import type { Exec, ExecResult } from "../src/core/exec";
 import {
+  BOOTSTRAP_TEARDOWN_RETRY_ATTEMPTS,
   bootoutDaemon,
   bootstrapDaemon,
   disableDaemon,
@@ -15,6 +16,8 @@ import {
   renderPlist,
   uninstallDaemon,
 } from "../src/core/launchd";
+
+const noopSleep = (): Promise<void> => Promise.resolve();
 
 describe("renderPlist", () => {
   test("renders a KeepAlive daemon with a ThrottleInterval", () => {
@@ -117,6 +120,53 @@ describe("installDaemon", () => {
     }
   });
 
+  test("retries bootstrap when launchd is still tearing down the job (EIO 5), then succeeds", async () => {
+    const dir = await mkdtemp(path.join(os.tmpdir(), "vpnctl-test-"));
+    const plistPath = path.join(dir, "com.vpnctl.monitor.plist");
+    let bootstrapCalls = 0;
+
+    try {
+      const exec: Exec = async (_cmd, args): Promise<ExecResult> => {
+        if (args[0] === "bootstrap") {
+          bootstrapCalls += 1;
+          return bootstrapCalls < 3
+            ? { stdout: "", stderr: "Bootstrap failed: 5: Input/output error\n", exitCode: 1 }
+            : { stdout: "", stderr: "", exitCode: 0 };
+        }
+        return { stdout: "", stderr: "", exitCode: 0 };
+      };
+
+      await installDaemon(exec, "com.vpnctl.monitor", plistPath, "PLIST-CONTENT", "system", noopSleep);
+
+      expect(bootstrapCalls).toBe(3);
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  test("gives up after exhausting teardown retries and throws", async () => {
+    const dir = await mkdtemp(path.join(os.tmpdir(), "vpnctl-test-"));
+    const plistPath = path.join(dir, "com.vpnctl.monitor.plist");
+    let bootstrapCalls = 0;
+
+    try {
+      const exec: Exec = async (_cmd, args): Promise<ExecResult> => {
+        if (args[0] === "bootstrap") {
+          bootstrapCalls += 1;
+          return { stdout: "", stderr: "Bootstrap failed: 5: Input/output error\n", exitCode: 1 };
+        }
+        return { stdout: "", stderr: "", exitCode: 0 };
+      };
+
+      await expect(installDaemon(exec, "com.vpnctl.monitor", plistPath, "PLIST-CONTENT", "system", noopSleep)).rejects.toThrow(
+        /failed to bootstrap/,
+      );
+      expect(bootstrapCalls).toBe(BOOTSTRAP_TEARDOWN_RETRY_ATTEMPTS);
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
   test("throws when enable fails", async () => {
     const dir = await mkdtemp(path.join(os.tmpdir(), "vpnctl-test-"));
     const plistPath = path.join(dir, "com.vpnctl.monitor.plist");
@@ -133,17 +183,22 @@ describe("installDaemon", () => {
     }
   });
 
-  test("throws when bootstrap fails", async () => {
+  test("throws when bootstrap fails with a non-teardown error (no retry)", async () => {
     const dir = await mkdtemp(path.join(os.tmpdir(), "vpnctl-test-"));
     const plistPath = path.join(dir, "com.vpnctl.monitor.plist");
+    let bootstrapCalls = 0;
 
     try {
       const exec: Exec = async (_cmd, args): Promise<ExecResult> => {
-        if (args[0] === "bootstrap") return { stdout: "", stderr: "bootstrap failed\n", exitCode: 1 };
+        if (args[0] === "bootstrap") {
+          bootstrapCalls += 1;
+          return { stdout: "", stderr: "bootstrap failed\n", exitCode: 1 };
+        }
         return { stdout: "", stderr: "", exitCode: 0 };
       };
 
       await expect(installDaemon(exec, "com.vpnctl.monitor", plistPath, "PLIST-CONTENT", "system")).rejects.toThrow(/failed to bootstrap/);
+      expect(bootstrapCalls).toBe(1);
     } finally {
       await rm(dir, { recursive: true, force: true });
     }

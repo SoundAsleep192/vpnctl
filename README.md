@@ -43,6 +43,7 @@ vpnctl exec -- <command>   # preflight (tunnel up, optional country block) then 
 vpnctl domains list|add|remove <domain>  # manage the domain allowlist
 vpnctl logs [--monitor] [--tunnel] [-f] [-n <count>]  # tail monitor/tunnel logs
 vpnctl doctor              # diagnose bun, config, sing-box, pf, and daemons (requires root)
+vpnctl update              # check for a newer release, install it, and redeploy daemons (requires root)
 vpnctl audit [--watch <s>] [--log] [--install-agent] [--uninstall-agent]  # snapshot AI dev tool connections
 ```
 

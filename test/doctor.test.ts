@@ -7,10 +7,10 @@ import {
   checkBunVersion,
   checkConfig,
   checkDaemon,
+  checkForUpdate,
   checkGeneratedSingBoxConfig,
   checkPfEnabled,
   checkSingBoxBinary,
-  compareVersions,
   formatDoctorReport,
   type DoctorCheck,
 } from "../src/cli/commands/doctor";
@@ -18,6 +18,7 @@ import type { Config } from "../src/core/config";
 import { saveConfig } from "../src/core/config";
 import type { Exec } from "../src/core/exec";
 import { PF_ANCHOR_NAME } from "../src/core/paths";
+import { compareVersions } from "../src/core/version";
 
 function makeExec(responses: Record<string, { stdout?: string; exitCode?: number }>): Exec {
   return async (cmd, args) => {
@@ -195,6 +196,49 @@ describe("checkDaemon", () => {
   test("warn when launchctl print fails", async () => {
     const exec = makeExec({ "/bin/launchctl print system/com.vpnctl.tunnel": { exitCode: 1 } });
     expect(await checkDaemon(exec, "com.vpnctl.tunnel")).toEqual({ name: "com.vpnctl.tunnel", status: "warn", detail: "not loaded" });
+  });
+});
+
+describe("checkForUpdate", () => {
+  const releaseUrl = "https://api.github.com/repos/SoundAsleep192/vpnctl/releases/latest";
+  const releaseCall = `/usr/bin/curl -fsSL --max-time 5 -H User-Agent: vpnctl ${releaseUrl}`;
+
+  async function withTmpCachePath(run: (cachePath: string) => Promise<void>): Promise<void> {
+    const dir = await mkdtemp(path.join(os.tmpdir(), "vpnctl-doctor-test-"));
+    try {
+      await run(path.join(dir, "update-check.json"));
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  }
+
+  test("warn when a newer release is available", async () => {
+    await withTmpCachePath(async (cachePath) => {
+      const exec = makeExec({ [releaseCall]: { stdout: JSON.stringify({ tag_name: "v0.2.0" }) } });
+      expect(await checkForUpdate(exec, "0.1.5", cachePath)).toEqual({
+        name: "update",
+        status: "warn",
+        detail: "v0.2.0 available — run `vpnctl update`",
+      });
+    });
+  });
+
+  test("ok when already up to date", async () => {
+    await withTmpCachePath(async (cachePath) => {
+      const exec = makeExec({ [releaseCall]: { stdout: JSON.stringify({ tag_name: "v0.1.5" }) } });
+      expect(await checkForUpdate(exec, "0.1.5", cachePath)).toEqual({ name: "update", status: "ok", detail: "up to date (v0.1.5)" });
+    });
+  });
+
+  test("ok when the release check fails (e.g. offline)", async () => {
+    await withTmpCachePath(async (cachePath) => {
+      const exec = makeExec({ [releaseCall]: { stdout: "", exitCode: 1 } });
+      expect(await checkForUpdate(exec, "0.1.5", cachePath)).toEqual({
+        name: "update",
+        status: "ok",
+        detail: "unable to check for updates — currently v0.1.5",
+      });
+    });
   });
 });
 

@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
+import pkg from "../package.json";
 import type { Exec } from "../src/core/exec";
 import { PF_ANCHOR_NAME, PF_TABLE_V4, PF_TABLE_V6 } from "../src/core/paths";
 import { formatStatus, gatherStatus, type StatusResult } from "../src/cli/commands/status";
@@ -15,6 +16,9 @@ function fixture(name: string): string {
 
 const SINKHOLED_HOSTS = fixture("etc-hosts.sinkholed.txt");
 const CLEAN_HOSTS = fixture("etc-hosts.clean.txt");
+
+const LATEST_RELEASE_CALL = `/usr/bin/curl -fsSL --max-time 5 -H User-Agent: vpnctl https://api.github.com/repos/SoundAsleep192/vpnctl/releases/latest`;
+const UP_TO_DATE_RELEASE_RESPONSE = { stdout: JSON.stringify({ tag_name: `v${pkg.version}` }) };
 
 function makeExec(responses: Record<string, { stdout?: string; exitCode?: number }>): {
   exec: Exec;
@@ -53,9 +57,10 @@ describe("gatherStatus", () => {
         "/sbin/route -n get 8.8.8.8": { stdout: "interface: en0\n" },
         "/bin/launchctl print system/com.vpnctl.monitor": { exitCode: 1 },
         "/bin/launchctl print system/com.vpnctl.tunnel": { exitCode: 1 },
+        [LATEST_RELEASE_CALL]: UP_TO_DATE_RELEASE_RESPONSE,
       });
 
-      const status = await gatherStatus(exec, null, CLEAN_HOSTS, false, pidFile);
+      const status = await gatherStatus(exec, null, CLEAN_HOSTS, false, pidFile, path.join(dir, "update-check.json"));
 
       expect(status).toEqual({
         pfEnabled: false,
@@ -70,6 +75,7 @@ describe("gatherStatus", () => {
         tunnelDaemonLoaded: false,
         sinkholeActive: false,
         publicIp: null,
+        updateAvailable: null,
       });
     } finally {
       await cleanup();
@@ -97,9 +103,10 @@ describe("gatherStatus", () => {
         "/usr/bin/dig +short myip.opendns.com @resolver1.opendns.com": { stdout: "203.0.113.7\n" },
         "/bin/launchctl print system/com.vpnctl.monitor": { exitCode: 0 },
         "/bin/launchctl print system/com.vpnctl.tunnel": { exitCode: 0 },
+        [LATEST_RELEASE_CALL]: UP_TO_DATE_RELEASE_RESPONSE,
       });
 
-      const status = await gatherStatus(exec, singboxConfig, SINKHOLED_HOSTS, true, pidFile);
+      const status = await gatherStatus(exec, singboxConfig, SINKHOLED_HOSTS, true, pidFile, path.join(dir, "update-check.json"));
 
       expect(status).toEqual({
         pfEnabled: true,
@@ -114,6 +121,7 @@ describe("gatherStatus", () => {
         tunnelDaemonLoaded: true,
         sinkholeActive: true,
         publicIp: "203.0.113.7",
+        updateAvailable: null,
       });
     } finally {
       await cleanup();
@@ -135,6 +143,7 @@ describe("formatStatus", () => {
     tunnelDaemonLoaded: true,
     sinkholeActive: false,
     publicIp: null,
+    updateAvailable: null,
   };
 
   test("renders human-readable sections", () => {
@@ -150,11 +159,17 @@ describe("formatStatus", () => {
     expect(output).toContain("com.vpnctl.tunnel: loaded");
     expect(output).toContain("/etc/hosts: inactive");
     expect(output).not.toContain("public ip");
+    expect(output).not.toContain("update available");
   });
 
   test("includes the public ip section when present", () => {
     const output = formatStatus({ ...base, publicIp: "203.0.113.7" });
     expect(output).toContain("=== public ip ===\n203.0.113.7");
+  });
+
+  test("includes the update hint when a newer release is available", () => {
+    const output = formatStatus({ ...base, updateAvailable: "0.2.0" });
+    expect(output).toContain("update available: v0.2.0 — run `vpnctl update`");
   });
 
   test("renders down/none states", () => {
