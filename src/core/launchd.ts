@@ -57,12 +57,25 @@ export function renderPlist(opts: PlistOptions): string {
   return lines.join("\n") + "\n";
 }
 
-export const BOOTSTRAP_TEARDOWN_RETRY_ATTEMPTS = 10;
-const BOOTSTRAP_TEARDOWN_RETRY_DELAY_MS = 500;
+// launchd's async teardown of a busy daemon (the monitor mid-reconcile over
+// dozens of domains + pf tables) can outlast a short retry window on slow or
+// loaded machines — the E2E tier reproduced a teardown that ran past 5s on a
+// constrained VM, exhausting the old 10×500ms budget and leaving the monitor
+// daemon DOWN after a redeploy. The budget below is a capped linear backoff
+// with a ~27s patience ceiling (500ms, 1s, then 1.5s steps), so a self
+// `install`/`update` waits out a slow teardown instead of killing the
+// killswitch. Normal teardowns still clear in 1-2 retries (<1s).
+export const BOOTSTRAP_TEARDOWN_RETRY_ATTEMPTS = 20;
+const BOOTSTRAP_TEARDOWN_RETRY_BASE_DELAY_MS = 500;
+const BOOTSTRAP_TEARDOWN_RETRY_MAX_DELAY_MS = 1500;
 // launchd reports the async-teardown collision as errno 5 (EIO):
 // "Bootstrap failed: 5: Input/output error". Match the errno number too, in
 // case `strerror` is localized under a non-C locale.
 const BOOTSTRAP_TEARDOWN_ERROR = /Input\/output error|(?:failed|error): 5\b/i;
+
+export function bootstrapTeardownRetryDelayMs(attempt: number): number {
+  return Math.min(BOOTSTRAP_TEARDOWN_RETRY_BASE_DELAY_MS * attempt, BOOTSTRAP_TEARDOWN_RETRY_MAX_DELAY_MS);
+}
 
 export async function installDaemon(
   exec: Exec,
@@ -94,7 +107,7 @@ export async function installDaemon(
     console.warn(
       `launchd still tearing down ${label}; retrying bootstrap (attempt ${attempt + 1}/${BOOTSTRAP_TEARDOWN_RETRY_ATTEMPTS})...`,
     );
-    await sleep(BOOTSTRAP_TEARDOWN_RETRY_DELAY_MS);
+    await sleep(bootstrapTeardownRetryDelayMs(attempt));
     result = await exec("/bin/launchctl", ["bootstrap", domain, plistPath]);
   }
   if (result.exitCode !== 0) {
