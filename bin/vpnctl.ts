@@ -14,6 +14,7 @@ import { runSetup } from "../src/cli/commands/setup";
 import { runStatus } from "../src/cli/commands/status";
 import { runUninstall } from "../src/cli/commands/uninstall";
 import { runUp } from "../src/cli/commands/up";
+import { runUpdate } from "../src/cli/commands/update";
 
 const program = new Command();
 
@@ -121,6 +122,13 @@ program
   .option("-n, --lines <count>", "number of lines to show", (value) => Number(value))
   .action(async (opts: { monitor?: boolean; tunnel?: boolean; follow?: boolean; lines?: number }) => {
     await runLogs(opts);
+  });
+
+program
+  .command("update")
+  .description("check for a newer release and install it, redeploying LaunchDaemons (requires root)")
+  .action(async () => {
+    await runUpdate();
   });
 
 program

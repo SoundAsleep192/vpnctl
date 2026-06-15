@@ -1,3 +1,4 @@
+import pkg from "../../../package.json";
 import type { Exec } from "../../core/exec";
 import { realExec } from "../../core/exec";
 import { isLoaded } from "../../core/launchd";
@@ -12,9 +13,11 @@ import {
   PF_TABLE_V4,
   PF_TABLE_V6,
   TUNNEL_PID_FILE,
+  UPDATE_CHECK_CACHE_FILE,
 } from "../../core/paths";
 import { readSingBoxConfig } from "../../core/singbox-config";
 import { requireRoot } from "../root";
+import { checkUpdateAvailable } from "./update";
 
 export interface StatusResult {
   pfEnabled: boolean;
@@ -29,6 +32,7 @@ export interface StatusResult {
   tunnelDaemonLoaded: boolean;
   sinkholeActive: boolean;
   publicIp: string | null;
+  updateAvailable: string | null;
 }
 
 async function isPfEnabled(exec: Exec): Promise<boolean> {
@@ -56,6 +60,7 @@ export async function gatherStatus(
   hostsContent: string,
   includeIp = false,
   pidFile: string = TUNNEL_PID_FILE,
+  updateCheckCachePath: string = UPDATE_CHECK_CACHE_FILE,
 ): Promise<StatusResult> {
   const { trustedIface: trustedInterface, publicIface: publicInterface, tunnelUp } = await getTunnelState(exec, singboxConfig, pidFile);
 
@@ -72,6 +77,7 @@ export async function gatherStatus(
     tunnelDaemonLoaded: await isLoaded(exec, LAUNCHD_LABEL_TUNNEL, "system"),
     sinkholeActive: hostsContent.includes(HOSTS_MARKER_BEGIN),
     publicIp: includeIp ? await resolvePublicIp(exec) : null,
+    updateAvailable: await checkUpdateAvailable(exec, pkg.version, updateCheckCachePath),
   };
 }
 
@@ -103,6 +109,10 @@ export function formatStatus(status: StatusResult): string {
 
   if (status.publicIp !== null) {
     lines.push("", "=== public ip ===", status.publicIp);
+  }
+
+  if (status.updateAvailable !== null) {
+    lines.push("", `update available: v${status.updateAvailable} — run \`vpnctl update\``);
   }
 
   return lines.join("\n");

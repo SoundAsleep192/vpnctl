@@ -12,6 +12,7 @@ export const ROOT_BIN_DIR = path.join(ROOT_STATE_DIR, "bin");
 export const ROOT_CACHE_DIR = path.join(ROOT_STATE_DIR, "cache");
 export const CACHE_V4_FILE = path.join(ROOT_CACHE_DIR, "last-good-v4.txt");
 export const CACHE_V6_FILE = path.join(ROOT_CACHE_DIR, "last-good-v6.txt");
+export const UPDATE_CHECK_CACHE_FILE = path.join(ROOT_CACHE_DIR, "update-check.json");
 export const TUNNEL_PID_FILE = path.join(ROOT_STATE_DIR, "tunnel.pid");
 
 export const LOG_DIR = "/Library/Logs/vpnctl";
