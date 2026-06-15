@@ -3,7 +3,7 @@ import path from "node:path";
 import { loadConfig } from "../core/config";
 import { realExec } from "../core/exec";
 import type { TunnelState } from "../core/network";
-import { GENERATED_SINGBOX_CONFIG, TUNNEL_PID_FILE } from "../core/paths";
+import { CONFIG_FILE, GENERATED_SINGBOX_CONFIG, TUNNEL_PID_FILE } from "../core/paths";
 import { tickSinkholeAndAnchor } from "./monitor";
 
 const RECONCILE_TICK_MS = 5_000;
@@ -28,6 +28,15 @@ function parseArgs(argv: string[]): { singBoxPath: string; configPath: string } 
   }
 
   return { singBoxPath, configPath };
+}
+
+// The tunnel daemon is launched by launchd as root, where os.homedir() resolves to
+// /var/root — so loadConfig()'s home-based CONFIG_FILE default points at a config that
+// doesn't exist and the daemon crashes (#6 regression). Derive the vpnctl config path
+// from the absolute sing-box config path install passes in (both live in the same
+// config dir), mirroring how monitor derives sing-box.json from its --config arg.
+export function deriveVpnctlConfigPath(singboxConfigPath: string): string {
+  return path.join(path.dirname(singboxConfigPath), path.basename(CONFIG_FILE));
 }
 
 async function main(): Promise<void> {
@@ -56,7 +65,7 @@ async function main(): Promise<void> {
   // of the monitor daemon, so enforcement converges even if monitor's RunAtLoad
   // spawn stalls at boot (#6) — the tunnel daemon is the one proven to spawn
   // reliably, and reconcileTunnelState is idempotent/safe to call redundantly.
-  const config = await loadConfig();
+  const config = await loadConfig(deriveVpnctlConfigPath(configPath));
   let tunnelState: TunnelState | null = null;
   const reconcileLoop = async (): Promise<void> => {
     while (!stopping) {
