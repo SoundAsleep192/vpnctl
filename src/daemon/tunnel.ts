@@ -1,6 +1,12 @@
 import { mkdir, rm } from "node:fs/promises";
 import path from "node:path";
+import { loadConfig } from "../core/config";
+import { realExec } from "../core/exec";
+import type { TunnelState } from "../core/network";
 import { GENERATED_SINGBOX_CONFIG, TUNNEL_PID_FILE } from "../core/paths";
+import { tickSinkholeAndAnchor } from "./monitor";
+
+const RECONCILE_TICK_MS = 5_000;
 
 function log(message: string): void {
   const timestamp = new Date().toISOString().replace("T", " ").slice(0, 19);
@@ -45,6 +51,25 @@ async function main(): Promise<void> {
   };
   process.on("SIGTERM", stop);
   process.on("SIGINT", stop);
+
+  // Reconcile pf anchor + sinkhole against this tunnel's own state independently
+  // of the monitor daemon, so enforcement converges even if monitor's RunAtLoad
+  // spawn stalls at boot (#6) — the tunnel daemon is the one proven to spawn
+  // reliably, and reconcileTunnelState is idempotent/safe to call redundantly.
+  const config = await loadConfig();
+  let tunnelState: TunnelState | null = null;
+  const reconcileLoop = async (): Promise<void> => {
+    while (!stopping) {
+      try {
+        tunnelState = await tickSinkholeAndAnchor(realExec, config, configPath, tunnelState);
+      } catch (error) {
+        log(`ERROR reconcile tick: ${(error as Error).message}`);
+      }
+      if (stopping) break;
+      await Bun.sleep(RECONCILE_TICK_MS);
+    }
+  };
+  void reconcileLoop();
 
   const exitCode = await child.exited;
 
