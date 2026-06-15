@@ -57,12 +57,20 @@ export function renderPlist(opts: PlistOptions): string {
   return lines.join("\n") + "\n";
 }
 
+export const BOOTSTRAP_TEARDOWN_RETRY_ATTEMPTS = 10;
+const BOOTSTRAP_TEARDOWN_RETRY_DELAY_MS = 500;
+// launchd reports the async-teardown collision as errno 5 (EIO):
+// "Bootstrap failed: 5: Input/output error". Match the errno number too, in
+// case `strerror` is localized under a non-C locale.
+const BOOTSTRAP_TEARDOWN_ERROR = /Input\/output error|(?:failed|error): 5\b/i;
+
 export async function installDaemon(
   exec: Exec,
   label: string,
   plistPath: string,
   plistContent: string,
   domain: "system" | `gui/${string}`,
+  sleep: (ms: number) => Promise<void> = Bun.sleep,
 ): Promise<void> {
   await Bun.write(plistPath, plistContent);
   await exec("/bin/launchctl", ["bootout", `${domain}/${label}`]);
@@ -72,7 +80,23 @@ export async function installDaemon(
   // after the job is booted out and the plist removed — clear it first.
   await enableDaemon(exec, label, domain);
 
-  const result = await exec("/bin/launchctl", ["bootstrap", domain, plistPath]);
+  let result = await exec("/bin/launchctl", ["bootstrap", domain, plistPath]);
+  for (
+    let attempt = 1;
+    attempt < BOOTSTRAP_TEARDOWN_RETRY_ATTEMPTS && result.exitCode !== 0 && BOOTSTRAP_TEARDOWN_ERROR.test(result.stderr);
+    attempt++
+  ) {
+    // When the job was actively running, launchd tears it down asynchronously
+    // after `bootout` returns — `launchctl print` keeps reporting it loaded
+    // throughout, then `bootstrap` for the same label collides with the
+    // in-flight teardown and fails with "5: Input/output error". Retry until
+    // teardown completes.
+    console.warn(
+      `launchd still tearing down ${label}; retrying bootstrap (attempt ${attempt + 1}/${BOOTSTRAP_TEARDOWN_RETRY_ATTEMPTS})...`,
+    );
+    await sleep(BOOTSTRAP_TEARDOWN_RETRY_DELAY_MS);
+    result = await exec("/bin/launchctl", ["bootstrap", domain, plistPath]);
+  }
   if (result.exitCode !== 0) {
     throw new Error(`failed to bootstrap ${label}: ${result.stderr.trim()}`);
   }
