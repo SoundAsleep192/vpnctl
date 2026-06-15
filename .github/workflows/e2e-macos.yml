@@ -18,7 +18,9 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [macos-14, macos-13]
+        # macos-14 = arm64, macos-15-intel = x86_64 — validates both release
+        # assets. (macos-13, the old free Intel image, was retired 2025-12-04.)
+        os: [macos-14, macos-15-intel]
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
