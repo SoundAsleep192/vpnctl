@@ -19,4 +19,23 @@ test -s "$SMOKE_TEST_HOME/.config/vpnctl/config.json"
 test -s "$SMOKE_TEST_HOME/.config/vpnctl/sing-box.json"
 grep -q "vpn.example.com" "$SMOKE_TEST_HOME/.config/vpnctl/config.json"
 
+# Guard the bun-compile interop regression: the tray daemon must get past
+# `new SysTray(...)` without an "Object is not a constructor" / missing-package
+# crash that unit tests can't see (only the compiled binary exhibits it). This is
+# display-independent — CI runners are headless, so we only assert the fatal
+# startup errors are absent, not that a menu-bar icon actually attaches.
+TRAY_OUT=$(mktemp)
+./dist/vpnctl-tray >"$TRAY_OUT" 2>&1 &
+TRAY_PID=$!
+sleep 3
+kill "$TRAY_PID" 2>/dev/null || true
+pkill -f tray_darwin_release 2>/dev/null || true
+if grep -qE "is not a constructor|Cannot find package" "$TRAY_OUT"; then
+  echo "smoke-test-dist: tray failed to start (compiled interop regression):"
+  cat "$TRAY_OUT"
+  rm -f "$TRAY_OUT"
+  exit 1
+fi
+rm -f "$TRAY_OUT"
+
 echo "smoke-test-dist: OK"

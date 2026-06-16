@@ -18,7 +18,11 @@ export const TUNNEL_PID_FILE = path.join(ROOT_STATE_DIR, "tunnel.pid");
 export const LOG_DIR = "/Library/Logs/vpnctl";
 export const MONITOR_LOG_FILE = path.join(LOG_DIR, "monitor.log");
 export const TUNNEL_LOG_FILE = path.join(LOG_DIR, "tunnel.log");
-export const TRAY_LOG_FILE = path.join(LOG_DIR, "tray.log");
+
+// The tray is a per-user LaunchAgent and can't write into the root-owned LOG_DIR
+// (launchd fails the job with EX_CONFIG), so its log lives under the user config
+// dir, like the audit agent's log.
+export const TRAY_LOG_FILE = path.join(CONFIG_DIR, "tray.log");
 
 // Written world-readable by the root monitor daemon so the unprivileged tray
 // agent can read current state without sudo.
