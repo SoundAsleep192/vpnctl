@@ -168,10 +168,16 @@ async function main(): Promise<void> {
     sinceRefreshMs += DESIRED_POLL_MS;
 
     const desired = await readDesiredTunnel(desiredTunnelPath);
-    if (desired !== lastDesired) {
+    // Only an explicit up/down write is an intent change worth acting on. Treat
+    // the file disappearing (e.g. uninstall cleaning it up) as "no opinion", not
+    // a trigger — otherwise a lingering monitor would reconcile mid-uninstall and
+    // recreate the pf anchor / sinkhole that uninstall just removed.
+    if (desired !== null && desired !== lastDesired) {
       lastDesired = desired;
       sinceReconcileMs = 0;
       await runTickSerialized();
+    } else if (desired !== lastDesired) {
+      lastDesired = desired;
     } else if (sinceReconcileMs >= SINKHOLE_TICK_MS) {
       sinceReconcileMs = 0;
       await runTickSerialized();
