@@ -22,12 +22,14 @@
     "build": "bun build --compile bin/vpnctl.ts --outfile dist/vpnctl",
     "build:monitor": "bun build --compile src/daemon/monitor.ts --outfile dist/vpnctl-monitor",
     "build:tunnel": "bun build --compile src/daemon/tunnel.ts --outfile dist/vpnctl-tunnel",
-    "build:daemons": "bun run build:monitor && bun run build:tunnel"
+    "build:tray": "bun build --compile src/daemon/tray.ts --outfile dist/vpnctl-tray",
+    "build:daemons": "bun run build:monitor && bun run build:tunnel && bun run build:tray"
   },
   "dependencies": {
     "@clack/prompts": "^0.9.1",
     "commander": "^13.1.0",
     "picocolors": "^1.1.1",
+    "systray2": "^2.1.4",
     "zod": "^3.24.1"
   },
   "devDependencies": {

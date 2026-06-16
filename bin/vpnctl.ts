@@ -12,6 +12,7 @@ import { runLogs } from "../src/cli/commands/logs";
 import { runRefresh } from "../src/cli/commands/refresh";
 import { runSetup } from "../src/cli/commands/setup";
 import { runStatus } from "../src/cli/commands/status";
+import { runTrayInstall, runTrayUninstall } from "../src/cli/commands/tray";
 import { runUninstall } from "../src/cli/commands/uninstall";
 import { runUp } from "../src/cli/commands/up";
 import { runUpdate } from "../src/cli/commands/update";
@@ -165,6 +166,22 @@ wrapCommand
   .option("--dir <path>", "directory to scan (default: ~/.local/bin)")
   .action(async (opts: { dir?: string }) => {
     await runWrapList({ dir: opts.dir });
+  });
+
+const trayCommand = program.command("tray").description("manage the menu-bar status indicator (per-user LaunchAgent)");
+
+trayCommand
+  .command("install")
+  .description("install the menu-bar status indicator LaunchAgent")
+  .action(async () => {
+    await runTrayInstall();
+  });
+
+trayCommand
+  .command("uninstall")
+  .description("remove the menu-bar status indicator LaunchAgent")
+  .action(async () => {
+    await runTrayUninstall();
   });
 
 program

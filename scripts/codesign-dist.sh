@@ -10,7 +10,7 @@ set -euo pipefail
 
 cd "$(dirname "$0")/.."
 
-BINARIES=(dist/vpnctl dist/vpnctl-monitor dist/vpnctl-tunnel)
+BINARIES=(dist/vpnctl dist/vpnctl-monitor dist/vpnctl-tunnel dist/vpnctl-tray)
 
 codesign --force --sign - "${BINARIES[@]}"
 
