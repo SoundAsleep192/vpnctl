@@ -1,8 +1,8 @@
-import { chmodSync } from "node:fs";
+import { chmodSync, statSync } from "node:fs";
 import path from "node:path";
 import SysTray from "systray2";
 import { isCompiledBinary } from "../core/runtime";
-import { STATE_FILE } from "../core/paths";
+import { LAUNCHD_LABEL_TRAY, STATE_FILE } from "../core/paths";
 import { classifyState, parseStateFile, type TrayStatus } from "../core/state-file";
 
 const POLL_INTERVAL_MS = 3_000;
@@ -51,8 +51,29 @@ function buildMenu(status: TrayStatus) {
 // chmod is idempotent and harmless either way).
 function prepareTrayBinary(): void {
   const baseDir = isCompiledBinary() ? path.dirname(process.execPath) : path.resolve(import.meta.dir, "../../node_modules/systray2");
-  chmodSync(path.join(baseDir, "traybin", TRAY_BINARY_NAME), TRAY_BINARY_MODE);
+  ensureExecutable(path.join(baseDir, "traybin", TRAY_BINARY_NAME));
   if (isCompiledBinary()) process.chdir(baseDir);
+}
+
+function ensureExecutable(binaryPath: string): void {
+  try {
+    if ((statSync(binaryPath).mode & 0o111) !== 0) return;
+    chmodSync(binaryPath, TRAY_BINARY_MODE);
+  } catch {
+    // Best-effort: a root-owned install dir denies chmod to the per-user agent,
+    // but that's fine as long as the binary already carries +x (a tar-based
+    // release preserves it). systray2 surfaces a real spawn error if it doesn't.
+  }
+}
+
+// The "Quit" menu item should actually stop the tray. With KeepAlive the agent
+// would just relaunch on a plain exit, so boot it out of the GUI domain first;
+// it returns at next login (RunAtLoad). In a dev run (no launchd job) the
+// bootout is a harmless no-op and kill() still exits.
+function quit(systray: SysTray): void {
+  const uid = String(process.getuid?.() ?? 0);
+  Bun.spawnSync(["/bin/launchctl", "bootout", `gui/${uid}/${LAUNCHD_LABEL_TRAY}`]);
+  void systray.kill();
 }
 
 async function readStatus(): Promise<TrayStatus> {
@@ -70,7 +91,7 @@ async function main(): Promise<void> {
   await systray.ready();
 
   await systray.onClick((action) => {
-    if (action.item.title === QUIT_ITEM_TITLE) void systray.kill();
+    if (action.item.title === QUIT_ITEM_TITLE) quit(systray);
   });
 
   while (!systray.killed) {

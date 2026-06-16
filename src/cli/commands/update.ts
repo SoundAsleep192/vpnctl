@@ -16,7 +16,11 @@ const LATEST_RELEASE_API_URL = `https://api.github.com/repos/${REPO}/releases/la
 const CHECK_TIMEOUT_SECONDS = 5;
 const DOWNLOAD_TIMEOUT_SECONDS = 60;
 const UPDATE_CHECK_CACHE_TTL_MS = 6 * 60 * 60 * 1000;
-const RELEASE_BINARIES = ["vpnctl", "vpnctl-monitor", "vpnctl-tunnel"];
+const RELEASE_BINARIES = ["vpnctl", "vpnctl-monitor", "vpnctl-tunnel", "vpnctl-tray"];
+// The systray helper ships as a directory tree, not a flat binary, so it moves
+// separately from RELEASE_BINARIES.
+const TRAY_HELPER_DIR = "traybin";
+const TRAY_HELPER_PATH = path.join(TRAY_HELPER_DIR, "tray_darwin_release");
 
 const VERSION_REGEX = /^\d+(\.\d+)*$/;
 const RELEASE_TAG_REGEX = /^v?\d+(\.\d+)*$/;
@@ -156,9 +160,9 @@ export async function runUpdate(options: UpdateOptions = {}): Promise<void> {
       throw new Error(`failed to extract ${asset}: ${extract.stderr.trim()}`);
     }
 
-    for (const binary of RELEASE_BINARIES) {
-      if (!(await Bun.file(path.join(stagingDir, binary)).exists())) {
-        throw new Error(`${asset} is missing ${binary} — aborting update without touching ${installDir}`);
+    for (const artifact of [...RELEASE_BINARIES, TRAY_HELPER_PATH]) {
+      if (!(await Bun.file(path.join(stagingDir, artifact)).exists())) {
+        throw new Error(`${asset} is missing ${artifact} — aborting update without touching ${installDir}`);
       }
     }
 
@@ -166,6 +170,9 @@ export async function runUpdate(options: UpdateOptions = {}): Promise<void> {
     for (const binary of RELEASE_BINARIES) {
       await rename(path.join(stagingDir, binary), path.join(installDir, binary));
     }
+    // rename can't replace a populated directory, so drop the old helper first.
+    await rm(path.join(installDir, TRAY_HELPER_DIR), { recursive: true, force: true });
+    await rename(path.join(stagingDir, TRAY_HELPER_DIR), path.join(installDir, TRAY_HELPER_DIR));
   } finally {
     await rm(tmpDir, { recursive: true, force: true });
     await rm(stagingDir, { recursive: true, force: true });

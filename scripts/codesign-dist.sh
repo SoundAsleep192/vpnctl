@@ -10,7 +10,9 @@ set -euo pipefail
 
 cd "$(dirname "$0")/.."
 
-BINARIES=(dist/vpnctl dist/vpnctl-monitor dist/vpnctl-tunnel dist/vpnctl-tray)
+# The systray Go helper ships unsigned from npm; ad-hoc sign it too so every
+# executable payload in the release carries a valid signature.
+BINARIES=(dist/vpnctl dist/vpnctl-monitor dist/vpnctl-tunnel dist/vpnctl-tray dist/traybin/tray_darwin_release)
 
 codesign --force --sign - "${BINARIES[@]}"
 

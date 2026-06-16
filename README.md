@@ -55,6 +55,9 @@ menu-bar icon reflecting live state — green (tunnel up), red (tunnel down, tra
 blocked fail-closed), or gray (monitor daemon not running / state stale). It reads a
 world-readable `state.json` the monitor daemon writes each tick; no `sudo` needed.
 
+The menu-bar helper is an x86_64 binary, so on Apple Silicon it runs under Rosetta 2
+(`softwareupdate --install-rosetta`); `vpnctl tray install` warns if it's missing.
+
 ## Development
 
 Requires [Bun](https://bun.sh) >= 1.3.13.

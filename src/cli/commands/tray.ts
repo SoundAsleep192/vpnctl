@@ -23,6 +23,15 @@ function trayAgentDomain(): `gui/${string}` {
   return `gui/${uid}`;
 }
 
+// The bundled systray helper is an x86_64 Go binary, so on Apple Silicon it
+// only runs under Rosetta 2. Probe by running a trivial x86_64 binary; a
+// non-zero exit means Rosetta is absent and the tray icon won't appear.
+export async function isRosettaAvailable(exec: Exec): Promise<boolean> {
+  if (process.arch !== "arm64") return true;
+  const result = await exec("/usr/bin/arch", ["-x86_64", "/usr/bin/true"]);
+  return result.exitCode === 0;
+}
+
 async function trayInvocation(): Promise<string[]> {
   if (isCompiledBinary()) return [await resolveDaemonBinaryPath("vpnctl-tray")];
   return [process.execPath, "run", path.resolve(import.meta.dir, "../../daemon/tray.ts")];
@@ -34,6 +43,14 @@ export interface TrayOptions {
 
 export async function runTrayInstall(options: TrayOptions = {}): Promise<void> {
   const exec = options.exec ?? realExec;
+
+  if (!(await isRosettaAvailable(exec))) {
+    console.warn(
+      "Warning: the menu-bar helper is x86_64-only and needs Rosetta 2 on Apple Silicon.\n" +
+        "Install it, then reinstall the tray:\n  softwareupdate --install-rosetta --agree-to-license",
+    );
+  }
+
   const invocation = await trayInvocation();
   await installDaemon(exec, LAUNCHD_LABEL_TRAY, TRAY_PLIST_FILE, renderPlist(buildTrayPlist(invocation)), trayAgentDomain());
   console.log(`Installed ${TRAY_PLIST_FILE} — the menu-bar icon now reflects vpnctl state.`);
