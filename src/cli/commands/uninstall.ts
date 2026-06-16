@@ -9,6 +9,7 @@ import {
   LAUNCHD_PLIST_MONITOR,
   LAUNCHD_PLIST_TUNNEL,
   PF_ANCHOR_FILE,
+  PF_ANCHOR_NAME,
   PF_CONF_FILE,
   ROOT_STATE_DIR,
 } from "../../core/paths";
@@ -48,6 +49,13 @@ export async function runUninstall(options: UninstallOptions = {}): Promise<void
   if (reload.exitCode !== 0) {
     console.log(`warning: pf reload reported an error: ${reload.stderr.trim()}`);
   }
+
+  // Reverting pf.conf de-references the anchor, but its rules and tables stay
+  // loaded in the kernel. With the tunnel down those rules are fail-closed
+  // (block-all), so a leftover anchor would strand the machine offline after an
+  // uninstall — the killswitch outliving its own removal. Flush it explicitly.
+  console.log("Flushing pf anchor...");
+  await exec("/sbin/pfctl", ["-a", PF_ANCHOR_NAME, "-F", "all"]);
 
   if (options.purge) {
     console.log(`Removing ${ROOT_STATE_DIR}...`);
