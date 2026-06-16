@@ -25,7 +25,9 @@ TMP_DIR=$(mktemp -d)
 trap 'rm -rf "$TMP_DIR"' EXIT
 
 echo "Downloading ${ASSET} from the latest vpnctl release..."
-curl -fsSL "$URL" -o "$TMP_DIR/$ASSET"
+# Retry/resume: the GitHub release CDN occasionally stalls a connection, and a
+# bare `curl -fsSL` then hangs forever instead of recovering.
+curl -fL --retry 5 --retry-all-errors --retry-delay 2 --connect-timeout 15 -C - "$URL" -o "$TMP_DIR/$ASSET"
 
 mkdir -p "$INSTALL_DIR"
 tar -xzf "$TMP_DIR/$ASSET" -C "$INSTALL_DIR"

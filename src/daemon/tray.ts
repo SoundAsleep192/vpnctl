@@ -1,9 +1,21 @@
 import { chmodSync, statSync } from "node:fs";
 import path from "node:path";
-import SysTray from "systray2";
+import SysTrayDefault from "systray2";
 import { isCompiledBinary } from "../core/runtime";
 import { LAUNCHD_LABEL_TRAY, STATE_FILE } from "../core/paths";
 import { classifyState, parseStateFile, type TrayStatus } from "../core/state-file";
+
+// `bun build --compile` double-wraps systray2's CJS default export: the real
+// constructor sits at `.default.default` in the shipped binary but at `.default`
+// under `bun run`. The runtime shape doesn't match the published types, so this
+// boundary is genuinely untyped — pick whichever level is the constructor, else
+// `new SysTray(...)` throws "Object is not a constructor" in the release build.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function unwrapSysTrayConstructor(imported: any): typeof SysTrayDefault {
+  // eslint-disable-next-line @typescript-eslint/no-unsafe-return, @typescript-eslint/no-unsafe-member-access
+  return typeof imported === "function" ? imported : imported.default;
+}
+const SysTray = unwrapSysTrayConstructor(SysTrayDefault);
 
 const POLL_INTERVAL_MS = 3_000;
 const TRAY_BINARY_NAME = "tray_darwin_release";
@@ -70,7 +82,7 @@ function ensureExecutable(binaryPath: string): void {
 // would just relaunch on a plain exit, so boot it out of the GUI domain first;
 // it returns at next login (RunAtLoad). In a dev run (no launchd job) the
 // bootout is a harmless no-op and kill() still exits.
-function quit(systray: SysTray): void {
+function quit(systray: SysTrayDefault): void {
   const uid = String(process.getuid?.() ?? 0);
   Bun.spawnSync(["/bin/launchctl", "bootout", `gui/${uid}/${LAUNCHD_LABEL_TRAY}`]);
   void systray.kill();
