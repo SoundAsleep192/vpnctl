@@ -71,8 +71,8 @@ them by construction. The L1 tier runs the real CLI against real
   scenario **and** by the local `scripts/e2e-local.sh`. Its marker/label literals
   mirror `src/core/paths.ts` — keep them in sync.
 - `scripts/e2e/scenarios/*.sh` — one scenario per lifecycle concern
-  (`structural`, `update-race`). `scripts/e2e/run.sh` is the entrypoint the CI
-  workflow calls; the workflow itself contains no test logic.
+  (`structural`, `update-race`, `desired-state`). `scripts/e2e/run.sh` is the
+  entrypoint the CI workflow calls; the workflow itself contains no test logic.
 - **Each future daemon/pf/dns issue adds one E2E scenario here** that would have
   caught the bug, mirroring the unit-test "add a test when fixing a bug" rule.
 - Scenarios are **destructive** (mutate pf, `/etc/hosts`, system LaunchDaemons) —
@@ -112,6 +112,15 @@ touching `core/pf-anchor.ts`, `core/pf-conf-patch.ts`, `core/sinkhole.ts`,
 `core/dns-refresh.ts`, or the daemons: preserve fail-closed behavior (block-by-default
 when the tunnel is down or a lookup fails) and call out explicitly if a change could
 weaken that, even temporarily.
+
+`core/desired-tunnel.ts` is the unprivileged tray's only path to root: the
+monitor reads a user-writable `desired-tunnel` file and enacts it. Two invariants
+must hold — (1) the action is hard-capped to enabling/disabling the tunnel daemon
+(never arbitrary execution: the file is parsed as the literal `up`/`down`, anything
+else is ignored), and (2) enforcement runs in its own `try` _before_ the
+sinkhole/anchor reconcile in the monitor, so a failure there can never skip the
+reconcile that keeps the killswitch fail-closed. The worst a hostile writer can do
+is toggle the tunnel — and tunnel-down stays blocked, never leaked.
 
 ## Implementation notes
 

@@ -7,6 +7,13 @@ export const CONFIG_DIR = path.join(HOME, ".config", "vpnctl");
 export const CONFIG_FILE = path.join(CONFIG_DIR, "config.json");
 export const GENERATED_SINGBOX_CONFIG = path.join(CONFIG_DIR, "sing-box.json");
 
+// User-writable control file: the tray (and `up`/`down`) write the desired
+// tunnel state here, and the root monitor enforces it — no sudo prompt. Lives in
+// the user config dir so the unprivileged tray can write it. The monitor derives
+// the same path from its `--config` argument's directory, not this constant
+// (which would resolve to root's home in the system daemon).
+export const DESIRED_TUNNEL_FILE = path.join(CONFIG_DIR, "desired-tunnel");
+
 export const ROOT_STATE_DIR = "/Library/Application Support/vpnctl";
 export const ROOT_BIN_DIR = path.join(ROOT_STATE_DIR, "bin");
 export const ROOT_CACHE_DIR = path.join(ROOT_STATE_DIR, "cache");

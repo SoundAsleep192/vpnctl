@@ -3,6 +3,7 @@ import type { Exec } from "../../core/exec";
 import { realExec } from "../../core/exec";
 import { uninstallDaemon } from "../../core/launchd";
 import {
+  DESIRED_TUNNEL_FILE,
   HOSTS_FILE,
   LAUNCHD_LABEL_MONITOR,
   LAUNCHD_LABEL_TUNNEL,
@@ -22,6 +23,17 @@ export interface UninstallOptions {
   purge?: boolean;
 }
 
+const MONITOR_STOP_POLL_ATTEMPTS = 50;
+const MONITOR_STOP_POLL_DELAY_MS = 100;
+
+export async function waitForMonitorStopped(exec: Exec, sleep: (ms: number) => Promise<void> = Bun.sleep): Promise<void> {
+  for (let attempt = 0; attempt < MONITOR_STOP_POLL_ATTEMPTS; attempt++) {
+    const result = await exec("/usr/bin/pgrep", ["-f", "vpnctl-monitor"]);
+    if (result.exitCode !== 0) return;
+    await sleep(MONITOR_STOP_POLL_DELAY_MS);
+  }
+}
+
 export async function runUninstall(options: UninstallOptions = {}): Promise<void> {
   requireRoot();
 
@@ -32,6 +44,11 @@ export async function runUninstall(options: UninstallOptions = {}): Promise<void
 
   console.log("Removing monitor daemon...");
   await uninstallDaemon(exec, LAUNCHD_LABEL_MONITOR, LAUNCHD_PLIST_MONITOR, "system");
+
+  // launchctl bootout returns before the process actually exits. A monitor that
+  // is still alive will reconcile once more and recreate the pf anchor / sinkhole
+  // we are about to remove, so wait for it to be gone first.
+  await waitForMonitorStopped(exec);
 
   console.log(`Reverting ${PF_CONF_FILE}...`);
   await revertPfConfPatch(exec);
@@ -56,6 +73,10 @@ export async function runUninstall(options: UninstallOptions = {}): Promise<void
   // uninstall — the killswitch outliving its own removal. Flush it explicitly.
   console.log("Flushing pf anchor...");
   await exec("/sbin/pfctl", ["-a", PF_ANCHOR_NAME, "-F", "all"]);
+
+  // Drop the tray/CLI desired-state override; leaving a stale "down" would force
+  // the tunnel off on the next install.
+  await rm(DESIRED_TUNNEL_FILE, { force: true });
 
   if (options.purge) {
     console.log(`Removing ${ROOT_STATE_DIR}...`);

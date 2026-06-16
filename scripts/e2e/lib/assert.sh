@@ -24,6 +24,11 @@ PF_CONF_MARKER_BEGIN="# === BEGIN VPNCTL ==="
 HOSTS_FILE="/etc/hosts"
 HOSTS_MARKER_BEGIN="# === BEGIN VPNCTL SINKHOLE ==="
 
+# Mirrors DESIRED_TUNNEL_FILE in src/core/paths.ts — the user-writable control
+# file the tray writes and the root monitor enforces (no sudo). Keep in sync.
+# shellcheck disable=SC2034
+DESIRED_TUNNEL_FILE="$HOME/.config/vpnctl/desired-tunnel"
+
 # A domain from the default ai-dev-tools preset (templates/domains/ai-dev-tools.txt).
 # Used to observe the fail-closed sinkhole: when the tunnel is down this must
 # resolve to the 0.0.0.0 sink, not a real address.

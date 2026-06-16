@@ -1,7 +1,9 @@
 import { mkdir } from "node:fs/promises";
+import { watch } from "node:fs";
 import path from "node:path";
 import type { Config } from "../core/config";
 import { loadConfig } from "../core/config";
+import { enforceDesiredTunnel, readDesiredTunnel } from "../core/desired-tunnel";
 import { resolveAll, writeTable } from "../core/dns-refresh";
 import { reconcileTunnelState } from "../core/enforcement";
 import type { Exec } from "../core/exec";
@@ -12,20 +14,26 @@ import { writeStateFile } from "../core/state-file";
 
 const SINKHOLE_TICK_MS = 5_000;
 const REFRESH_TICK_MS = 10 * 60 * 1000;
+const DESIRED_POLL_MS = 1_000;
 
 function log(message: string): void {
   const timestamp = new Date().toISOString().replace("T", " ").slice(0, 19);
   console.log(`[${timestamp}] ${message}`);
 }
 
-function parseArgs(argv: string[]): { configPath: string; singboxConfigPath: string } {
+function parseArgs(argv: string[]): { configPath: string; singboxConfigPath: string; desiredTunnelPath: string } {
   let configPath = CONFIG_FILE;
 
   for (let i = 0; i < argv.length; i++) {
     if (argv[i] === "--config") configPath = argv[++i] ?? configPath;
   }
 
-  return { configPath, singboxConfigPath: path.join(path.dirname(configPath), "sing-box.json") };
+  const configDir = path.dirname(configPath);
+  return {
+    configPath,
+    singboxConfigPath: path.join(configDir, "sing-box.json"),
+    desiredTunnelPath: path.join(configDir, "desired-tunnel"),
+  };
 }
 
 export async function tickSinkholeAndAnchor(
@@ -65,7 +73,7 @@ export async function tickRefresh(exec: Exec, config: Config): Promise<void> {
 
 async function main(): Promise<void> {
   const exec = realExec;
-  const { configPath, singboxConfigPath } = parseArgs(process.argv.slice(2));
+  const { configPath, singboxConfigPath, desiredTunnelPath } = parseArgs(process.argv.slice(2));
   const config = await loadConfig(configPath);
 
   let stopping = false;
@@ -80,12 +88,52 @@ async function main(): Promise<void> {
 
   let tunnelState: TunnelState | null = null;
 
+  // Enforce the tray/CLI's desired tunnel state before reconciling, in its own
+  // try: a failure here must never skip the sinkhole/anchor reconcile that keeps
+  // the killswitch fail-closed.
+  const enforceTunnel = async (): Promise<void> => {
+    try {
+      const action = await enforceDesiredTunnel(exec, desiredTunnelPath);
+      if (action === "none") return;
+      log(`desired-state: tunnel ${action === "start" ? "started" : "stopped"}`);
+      // Stopping is instantly truthful (the daemon is down now), so flip the tray
+      // to fail-closed at once rather than after the slower sinkhole reconcile.
+      // Starting is not — the tunnel still has to connect — so let the reconcile
+      // confirm "up" before the tray goes green.
+      if (action === "stop") await writeStateFile(false, null);
+    } catch (error) {
+      log(`ERROR desired-tunnel enforce: ${(error as Error).message}`);
+    }
+  };
+
   const runTick = async (): Promise<void> => {
+    await enforceTunnel();
     try {
       tunnelState = await tickSinkholeAndAnchor(exec, config, singboxConfigPath, tunnelState);
       await writeStateFile(tunnelState.tunnelUp, tunnelState.trustedIface);
     } catch (error) {
       log(`ERROR sinkhole/anchor tick: ${(error as Error).message}`);
+    }
+  };
+
+  // Serialize ticks so the desired-state file watcher and the periodic timer can
+  // never reconcile pf/launchd concurrently; a request that lands mid-tick runs
+  // once more right after, so a tray click still takes effect immediately.
+  let ticking = false;
+  let tickRequested = false;
+  const runTickSerialized = async (): Promise<void> => {
+    if (ticking) {
+      tickRequested = true;
+      return;
+    }
+    ticking = true;
+    try {
+      do {
+        tickRequested = false;
+        await runTick();
+      } while (tickRequested && !stopping);
+    } finally {
+      ticking = false;
     }
   };
 
@@ -97,23 +145,51 @@ async function main(): Promise<void> {
     }
   };
 
-  await runTick();
+  // React to a tray/CLI desired-state write at once instead of waiting up to a
+  // full tick. Watch the directory so it survives the file being replaced.
+  const desiredFileName = path.basename(desiredTunnelPath);
+  const watcher = watch(path.dirname(desiredTunnelPath), (_event, filename) => {
+    if (filename === desiredFileName) void runTickSerialized();
+  });
+
+  await runTickSerialized();
   await runRefresh();
 
-  let elapsedMs = 0;
+  // Poll the small desired-state file every second: fs.watch alone is unreliable
+  // on macOS (FSEvents coalescing delays it by seconds), which made tray toggles
+  // feel laggy. The heavy sinkhole reconcile still runs only every SINKHOLE_TICK_MS.
+  let lastDesired = await readDesiredTunnel(desiredTunnelPath);
+  let sinceReconcileMs = 0;
+  let sinceRefreshMs = 0;
   while (!stopping) {
-    await Bun.sleep(SINKHOLE_TICK_MS);
+    await Bun.sleep(DESIRED_POLL_MS);
     if (stopping) break;
-    elapsedMs += SINKHOLE_TICK_MS;
+    sinceReconcileMs += DESIRED_POLL_MS;
+    sinceRefreshMs += DESIRED_POLL_MS;
 
-    await runTick();
+    const desired = await readDesiredTunnel(desiredTunnelPath);
+    // Only an explicit up/down write is an intent change worth acting on. Treat
+    // the file disappearing (e.g. uninstall cleaning it up) as "no opinion", not
+    // a trigger — otherwise a lingering monitor would reconcile mid-uninstall and
+    // recreate the pf anchor / sinkhole that uninstall just removed.
+    if (desired !== null && desired !== lastDesired) {
+      lastDesired = desired;
+      sinceReconcileMs = 0;
+      await runTickSerialized();
+    } else if (desired !== lastDesired) {
+      lastDesired = desired;
+    } else if (sinceReconcileMs >= SINKHOLE_TICK_MS) {
+      sinceReconcileMs = 0;
+      await runTickSerialized();
+    }
 
-    if (elapsedMs >= REFRESH_TICK_MS) {
-      elapsedMs = 0;
+    if (sinceRefreshMs >= REFRESH_TICK_MS) {
+      sinceRefreshMs = 0;
       await runRefresh();
     }
   }
 
+  watcher.close();
   log("monitor daemon exiting on signal");
 }
 

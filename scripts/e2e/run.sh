@@ -3,7 +3,7 @@
 # real macOS env. The GitHub Actions workflow calls this and nothing else — all
 # the logic lives in the scenario scripts, so CI and local runs are identical.
 #
-# Usage:  scripts/e2e/run.sh [structural|update-race|all]   (default: all)
+# Usage:  scripts/e2e/run.sh [structural|update-race|desired-state|all]   (default: all)
 set -euo pipefail
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -24,15 +24,16 @@ run_scenario() {
 }
 
 case "$TARGET" in
-  structural | update-race)
+  structural | update-race | desired-state)
     run_scenario "$TARGET"
     ;;
   all)
     run_scenario structural
     run_scenario update-race
+    run_scenario desired-state
     ;;
   *)
-    echo "unknown scenario: $TARGET (expected: structural | update-race | all)" >&2
+    echo "unknown scenario: $TARGET (expected: structural | update-race | desired-state | all)" >&2
     exit 1
     ;;
 esac
