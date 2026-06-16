@@ -18,6 +18,11 @@ export const TUNNEL_PID_FILE = path.join(ROOT_STATE_DIR, "tunnel.pid");
 export const LOG_DIR = "/Library/Logs/vpnctl";
 export const MONITOR_LOG_FILE = path.join(LOG_DIR, "monitor.log");
 export const TUNNEL_LOG_FILE = path.join(LOG_DIR, "tunnel.log");
+export const TRAY_LOG_FILE = path.join(LOG_DIR, "tray.log");
+
+// Written world-readable by the root monitor daemon so the unprivileged tray
+// agent can read current state without sudo.
+export const STATE_FILE = path.join(LOG_DIR, "state.json");
 
 export const PF_ANCHOR_NAME = "vpnctl";
 export const PF_TABLE_V4 = "vpnctl_v4";
@@ -42,6 +47,9 @@ export const LAUNCHD_PLIST_TUNNEL = path.join(LAUNCH_DAEMONS_DIR, `${LAUNCHD_LAB
 export const AUDIT_LOG_FILE = path.join(CONFIG_DIR, "audit.log");
 export const LAUNCHD_LABEL_AUDIT = "com.vpnctl.audit";
 export const AUDIT_PLIST_FILE = path.join(HOME, "Library", "LaunchAgents", `${LAUNCHD_LABEL_AUDIT}.plist`);
+
+export const LAUNCHD_LABEL_TRAY = "com.vpnctl.tray";
+export const TRAY_PLIST_FILE = path.join(HOME, "Library", "LaunchAgents", `${LAUNCHD_LABEL_TRAY}.plist`);
 
 export const DEFAULT_TUN_INTERFACE_NAME = "utun20";
 export const DEFAULT_TUN_ADDRESS = "172.19.0.1/30";

@@ -42,11 +42,14 @@ jobs:
           bun build --compile --target=bun-darwin-${{ matrix.arch }} bin/vpnctl.ts --outfile dist/vpnctl
           bun build --compile --target=bun-darwin-${{ matrix.arch }} src/daemon/monitor.ts --outfile dist/vpnctl-monitor
           bun build --compile --target=bun-darwin-${{ matrix.arch }} src/daemon/tunnel.ts --outfile dist/vpnctl-tunnel
+          bun build --compile --target=bun-darwin-${{ matrix.arch }} src/daemon/tray.ts --outfile dist/vpnctl-tray
+      # codesign-dist.sh stages the systray Go helper (x86_64-only; runs native
+      # on x64, via Rosetta 2 on arm64) into dist/traybin/ before signing.
       - run: ./scripts/codesign-dist.sh
       # x64 binaries run via Rosetta 2, preinstalled on macos-latest (arm64) runners.
       - run: ./scripts/smoke-test-dist.sh
       - name: Package
-        run: tar -czf "vpnctl-darwin-${{ matrix.arch }}.tar.gz" -C dist vpnctl vpnctl-monitor vpnctl-tunnel
+        run: tar -czf "vpnctl-darwin-${{ matrix.arch }}.tar.gz" -C dist vpnctl vpnctl-monitor vpnctl-tunnel vpnctl-tray traybin
       - uses: actions/upload-artifact@v4
         with:
           name: vpnctl-darwin-${{ matrix.arch }}

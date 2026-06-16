@@ -4,7 +4,7 @@ import os from "node:os";
 import path from "node:path";
 
 const INSTALL_SCRIPT = path.join(import.meta.dir, "../scripts/install.sh");
-const RELEASE_BINARIES = ["vpnctl", "vpnctl-monitor", "vpnctl-tunnel"];
+const RELEASE_BINARIES = ["vpnctl", "vpnctl-monitor", "vpnctl-tunnel", "vpnctl-tray"];
 
 const STUB_CURL = `#!/bin/bash
 set -euo pipefail
@@ -101,7 +101,7 @@ describe("scripts/install.sh", () => {
     const { exitCode, stdout, installDir, cleanup } = await runInstallScript();
     try {
       expect(exitCode).toBe(0);
-      expect(stdout).toContain(`Installed vpnctl, vpnctl-monitor, vpnctl-tunnel to ${installDir}`);
+      expect(stdout).toContain(`Installed vpnctl, vpnctl-monitor, vpnctl-tunnel, vpnctl-tray to ${installDir}`);
 
       for (const name of RELEASE_BINARIES) {
         const binaryStat = await stat(path.join(installDir, name));

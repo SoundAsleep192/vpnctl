@@ -8,6 +8,7 @@ import type { Exec } from "../core/exec";
 import { realExec } from "../core/exec";
 import { tunnelStateChanged, type TunnelState } from "../core/network";
 import { CACHE_V4_FILE, CACHE_V6_FILE, CONFIG_FILE, PF_TABLE_V4, PF_TABLE_V6 } from "../core/paths";
+import { writeStateFile } from "../core/state-file";
 
 const SINKHOLE_TICK_MS = 5_000;
 const REFRESH_TICK_MS = 10 * 60 * 1000;
@@ -82,6 +83,7 @@ async function main(): Promise<void> {
   const runTick = async (): Promise<void> => {
     try {
       tunnelState = await tickSinkholeAndAnchor(exec, config, singboxConfigPath, tunnelState);
+      await writeStateFile(tunnelState.tunnelUp, tunnelState.trustedIface);
     } catch (error) {
       log(`ERROR sinkhole/anchor tick: ${(error as Error).message}`);
     }

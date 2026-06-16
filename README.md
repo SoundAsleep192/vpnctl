@@ -19,8 +19,8 @@ blocked by default — not allowed through.
 curl -fsSL https://raw.githubusercontent.com/SoundAsleep192/vpnctl/master/scripts/install.sh | bash
 ```
 
-Installs `vpnctl`, `vpnctl-monitor`, and `vpnctl-tunnel` to `~/.local/bin` (override
-with `VPNCTL_INSTALL_DIR`). Add that directory to your `PATH` if prompted, then:
+Installs `vpnctl`, `vpnctl-monitor`, `vpnctl-tunnel`, and `vpnctl-tray` to `~/.local/bin`
+(override with `VPNCTL_INSTALL_DIR`). Add that directory to your `PATH` if prompted, then:
 
 ```sh
 brew install sing-box  # if not already installed
@@ -45,7 +45,18 @@ vpnctl logs [--monitor] [--tunnel] [-f] [-n <count>]  # tail monitor/tunnel logs
 vpnctl doctor              # diagnose bun, config, sing-box, pf, and daemons (requires root)
 vpnctl update              # check for a newer release, install it, and redeploy daemons (requires root)
 vpnctl audit [--watch <s>] [--log] [--install-agent] [--uninstall-agent]  # snapshot AI dev tool connections
+vpnctl tray install|uninstall  # menu-bar icon: green = protected, red = fail-closed, gray = stale/off
 ```
+
+### Status indicator
+
+`vpnctl tray install` adds a per-user LaunchAgent (`com.vpnctl.tray`) that shows a
+menu-bar icon reflecting live state — green (tunnel up), red (tunnel down, traffic
+blocked fail-closed), or gray (monitor daemon not running / state stale). It reads a
+world-readable `state.json` the monitor daemon writes each tick; no `sudo` needed.
+
+The menu-bar helper is an x86_64 binary, so on Apple Silicon it runs under Rosetta 2
+(`softwareupdate --install-rosetta`); `vpnctl tray install` warns if it's missing.
 
 ## Development
 

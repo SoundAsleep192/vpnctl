@@ -30,7 +30,7 @@ curl -fsSL "$URL" -o "$TMP_DIR/$ASSET"
 mkdir -p "$INSTALL_DIR"
 tar -xzf "$TMP_DIR/$ASSET" -C "$INSTALL_DIR"
 
-echo "Installed vpnctl, vpnctl-monitor, vpnctl-tunnel to $INSTALL_DIR"
+echo "Installed vpnctl, vpnctl-monitor, vpnctl-tunnel, vpnctl-tray to $INSTALL_DIR"
 
 case ":$PATH:" in
   *":$INSTALL_DIR:"*) ;;
