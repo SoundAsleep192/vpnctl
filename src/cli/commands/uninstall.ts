@@ -3,6 +3,7 @@ import type { Exec } from "../../core/exec";
 import { realExec } from "../../core/exec";
 import { uninstallDaemon } from "../../core/launchd";
 import {
+  DESIRED_TUNNEL_FILE,
   HOSTS_FILE,
   LAUNCHD_LABEL_MONITOR,
   LAUNCHD_LABEL_TUNNEL,
@@ -56,6 +57,10 @@ export async function runUninstall(options: UninstallOptions = {}): Promise<void
   // uninstall — the killswitch outliving its own removal. Flush it explicitly.
   console.log("Flushing pf anchor...");
   await exec("/sbin/pfctl", ["-a", PF_ANCHOR_NAME, "-F", "all"]);
+
+  // Drop the tray/CLI desired-state override; leaving a stale "down" would force
+  // the tunnel off on the next install.
+  await rm(DESIRED_TUNNEL_FILE, { force: true });
 
   if (options.purge) {
     console.log(`Removing ${ROOT_STATE_DIR}...`);
