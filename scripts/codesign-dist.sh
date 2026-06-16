@@ -10,8 +10,13 @@ set -euo pipefail
 
 cd "$(dirname "$0")/.."
 
-# The systray Go helper ships unsigned from npm; ad-hoc sign it too so every
-# executable payload in the release carries a valid signature.
+# Stage the systray Go helper next to vpnctl-tray (where the daemon chdir's to
+# find it). It ships unsigned from npm and `bun install` drops its +x bit, so
+# restore that, then ad-hoc sign it below alongside the rest.
+mkdir -p dist/traybin
+cp node_modules/systray2/traybin/tray_darwin_release dist/traybin/tray_darwin_release
+chmod +x dist/traybin/tray_darwin_release
+
 BINARIES=(dist/vpnctl dist/vpnctl-monitor dist/vpnctl-tunnel dist/vpnctl-tray dist/traybin/tray_darwin_release)
 
 codesign --force --sign - "${BINARIES[@]}"
