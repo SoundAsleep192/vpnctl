@@ -1,10 +1,17 @@
 import { deflateSync } from "node:zlib";
 
-// Regenerates the base64 16×16 RGBA circle icons embedded in src/daemon/tray.ts.
+// Regenerates the base64 shield icons embedded in src/daemon/tray.ts.
 // Run with `bun run scripts/gen-tray-icons.ts` and paste the output into the
 // ICON_* constants. Kept in the repo so the magic base64 strings are reproducible.
+//
+// All three are NON-template colored shields (green/red/gray). Template images
+// were tried for an adaptive-white look, but the systray Go helper only applies
+// the template flag at init — it can't toggle it per icon update, so the red
+// fail-closed shield rendered as white. Color is the reliable signal, and red
+// alarm matters more than adaptive white for a killswitch indicator.
 
-const ICON_SIZE = 16;
+const ICON_SIZE = 36;
+const SUPERSAMPLE = 4;
 
 function crc32(buffer: Uint8Array): number {
   let crc = 0xffffffff;
@@ -52,24 +59,95 @@ function encodePng(rgba: Uint8Array, size: number): string {
   return Buffer.from(buffer).toString("base64");
 }
 
-function circle(size: number, red: number, green: number, blue: number): string {
+// Shield silhouette: flat top with rounded corners, straight sides to the
+// shoulder, then a convex (curved) taper to a centered point — a real badge
+// shape, not the straight-edged blot the linear taper produced.
+const SHIELD_TOP = 0.085;
+const SHIELD_BOTTOM = 0.95;
+const SHIELD_SHOULDER = 0.46;
+const SHIELD_HALF_WIDTH = 0.39;
+const SHIELD_CORNER = 0.07;
+const OUTLINE_STROKE = 0.075;
+
+function shieldHalfWidth(normalizedY: number, inset: number): number {
+  const top = SHIELD_TOP + inset;
+  const bottom = SHIELD_BOTTOM - inset;
+  const halfWidthMax = SHIELD_HALF_WIDTH - inset;
+  if (normalizedY < top || normalizedY > bottom) return -1;
+  if (normalizedY <= SHIELD_SHOULDER) return halfWidthMax;
+  const taper = (normalizedY - SHIELD_SHOULDER) / (bottom - SHIELD_SHOULDER);
+  return halfWidthMax * Math.sqrt(Math.max(0, 1 - taper * taper));
+}
+
+function insideShield(normalizedX: number, normalizedY: number, inset: number): boolean {
+  const halfWidth = shieldHalfWidth(normalizedY, inset);
+  if (halfWidth < 0) return false;
+  const dx = Math.abs(normalizedX - 0.5);
+  if (dx > halfWidth) return false;
+
+  // Round the two top-outer corners with a quarter circle.
+  const top = SHIELD_TOP + inset;
+  const cornerX = SHIELD_HALF_WIDTH - inset - SHIELD_CORNER;
+  const cornerY = top + SHIELD_CORNER;
+  if (normalizedY < cornerY && dx > cornerX) {
+    return Math.hypot(dx - cornerX, normalizedY - cornerY) <= SHIELD_CORNER;
+  }
+  return true;
+}
+
+function distanceToSegment(px: number, py: number, ax: number, ay: number, bx: number, by: number): number {
+  const dx = bx - ax;
+  const dy = by - ay;
+  const lengthSquared = dx * dx + dy * dy;
+  const t = lengthSquared === 0 ? 0 : Math.max(0, Math.min(1, ((px - ax) * dx + (py - ay) * dy) / lengthSquared));
+  return Math.hypot(px - (ax + t * dx), py - (ay + t * dy));
+}
+
+type Glyph = "check" | "alert" | "none";
+const GLYPH_STROKE = 0.05;
+
+function insideGlyph(normalizedX: number, normalizedY: number, glyph: Glyph): boolean {
+  if (glyph === "check") {
+    return (
+      distanceToSegment(normalizedX, normalizedY, 0.33, 0.52, 0.44, 0.63) <= GLYPH_STROKE ||
+      distanceToSegment(normalizedX, normalizedY, 0.44, 0.63, 0.69, 0.37) <= GLYPH_STROKE
+    );
+  }
+  if (glyph === "alert") {
+    return (
+      distanceToSegment(normalizedX, normalizedY, 0.5, 0.33, 0.5, 0.55) <= GLYPH_STROKE ||
+      Math.hypot(normalizedX - 0.5, normalizedY - 0.66) <= GLYPH_STROKE * 1.05
+    );
+  }
+  return false;
+}
+
+function shield(size: number, red: number, green: number, blue: number, mode: "filled" | "outline", glyph: Glyph): string {
   const rgba = new Uint8Array(size * size * 4);
-  const center = (size - 1) / 2;
-  const radius = size / 2 - 1.2;
   for (let y = 0; y < size; y++) {
     for (let x = 0; x < size; x++) {
-      const distance = Math.hypot(x - center, y - center);
+      let hits = 0;
+      for (let subY = 0; subY < SUPERSAMPLE; subY++) {
+        for (let subX = 0; subX < SUPERSAMPLE; subX++) {
+          const normalizedX = (x + (subX + 0.5) / SUPERSAMPLE) / size;
+          const normalizedY = (y + (subY + 0.5) / SUPERSAMPLE) / size;
+          const inBody =
+            mode === "outline"
+              ? insideShield(normalizedX, normalizedY, 0) && !insideShield(normalizedX, normalizedY, OUTLINE_STROKE)
+              : insideShield(normalizedX, normalizedY, 0);
+          if (inBody && !insideGlyph(normalizedX, normalizedY, glyph)) hits++;
+        }
+      }
       const index = (y * size + x) * 4;
-      const alpha = distance <= radius ? 255 : distance <= radius + 1 ? Math.round(255 * (radius + 1 - distance)) : 0;
       rgba[index] = red;
       rgba[index + 1] = green;
       rgba[index + 2] = blue;
-      rgba[index + 3] = alpha;
+      rgba[index + 3] = Math.round((255 * hits) / (SUPERSAMPLE * SUPERSAMPLE));
     }
   }
   return encodePng(rgba, size);
 }
 
-console.log("ICON_PROTECTED  =", circle(ICON_SIZE, 40, 200, 80));
-console.log("ICON_FAIL_CLOSED=", circle(ICON_SIZE, 220, 50, 50));
-console.log("ICON_UNKNOWN    =", circle(ICON_SIZE, 150, 150, 150));
+console.log("ICON_PROTECTED  =", shield(ICON_SIZE, 40, 175, 95, "filled", "check"));
+console.log("ICON_FAIL_CLOSED=", shield(ICON_SIZE, 225, 55, 55, "filled", "alert"));
+console.log("ICON_UNKNOWN    =", shield(ICON_SIZE, 150, 150, 150, "outline", "none"));

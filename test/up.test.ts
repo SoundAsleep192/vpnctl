@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import type { Exec } from "../src/core/exec";
 import { LAUNCHD_PLIST_TUNNEL } from "../src/core/paths";
-import { startTunnel } from "../src/cli/commands/up";
+import { startTunnel } from "../src/core/tunnel-control";
 
 function makeExec(responses: Record<string, { exitCode?: number; stderr?: string }>): { exec: Exec; calls: string[][] } {
   const calls: string[][] = [];
