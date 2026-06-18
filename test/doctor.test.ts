@@ -264,6 +264,7 @@ describe("checkVpnConflicts", () => {
         stdout: "utun21: flags=8051<UP,POINTOPOINT,RUNNING,MULTICAST> mtu 1380\n\tinet 10.8.0.5 --> 10.8.0.5 netmask 0xffffffff\n",
       },
       "/sbin/route -n get 1.1.1.1": { stdout: "  interface: utun20\n" },
+      "/usr/sbin/scutil --dns": { stdout: "DNS configuration\n\nresolver #1\n  nameserver[0] : 192.168.1.1\n" },
     });
     const singboxConfig = { inbounds: [{ type: "tun", interface_name: "utun20", address: ["172.19.0.1/30"] }] };
     const checks = await checkVpnConflicts(exec, singboxConfig);
@@ -282,6 +283,7 @@ describe("checkVpnConflicts", () => {
         stdout: "utun21: flags=8051<UP,POINTOPOINT,RUNNING,MULTICAST> mtu 1380\n\tinet 10.8.0.5 --> 10.8.0.5 netmask 0xffffffff\n",
       },
       "/sbin/route -n get 1.1.1.1": { stdout: "  interface: utun21\n" },
+      "/usr/sbin/scutil --dns": { stdout: "DNS configuration\n\nresolver #1\n  nameserver[0] : 192.168.1.1\n" },
     });
     const singboxConfig = { inbounds: [{ type: "tun", interface_name: "utun20", address: ["172.19.0.1/30"] }] };
     const checks = await checkVpnConflicts(exec, singboxConfig);
@@ -290,6 +292,26 @@ describe("checkVpnConflicts", () => {
     expect(checks[1]?.status).toBe("warn");
     expect(checks[1]?.name).toBe("VPN routing conflict");
     expect(checks[1]?.detail).toContain("utun21");
+  });
+
+  test("DNS override warn when competing VPN pushes custom DNS servers", async () => {
+    const exec = makeExec({
+      "/sbin/ifconfig -lu": { stdout: "lo0 en0 utun20 utun21\n" },
+      "/sbin/ifconfig utun21": {
+        stdout: "utun21: flags=8051<UP,POINTOPOINT,RUNNING,MULTICAST> mtu 1380\n\tinet 10.8.0.5 --> 10.8.0.5 netmask 0xffffffff\n",
+      },
+      "/sbin/route -n get 1.1.1.1": { stdout: "  interface: utun20\n" },
+      "/usr/sbin/scutil --dns": {
+        stdout: "DNS configuration\n\nresolver #1\n  nameserver[0] : 10.10.0.1\n  nameserver[1] : 10.10.0.2\n  if_index : 12 (utun21)\n",
+      },
+    });
+    const singboxConfig = { inbounds: [{ type: "tun", interface_name: "utun20", address: ["172.19.0.1/30"] }] };
+    const checks = await checkVpnConflicts(exec, singboxConfig);
+    const dnsCheck = checks.find((check) => check.name === "VPN DNS override");
+    expect(dnsCheck?.status).toBe("warn");
+    expect(dnsCheck?.detail).toContain("utun21");
+    expect(dnsCheck?.detail).toContain("10.10.0.1");
+    expect(dnsCheck?.detail).toContain("10.10.0.2");
   });
 
   test("treats malformed singbox config (null) as no trusted interface", async () => {

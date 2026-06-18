@@ -1,0 +1,14 @@
+DNS configuration
+
+resolver #1
+  nameserver[0] : 192.168.1.1
+  flags    : Request A records
+  reach    : 0x00000002 (Reachable)
+
+resolver #2
+  domain   : local
+  options  : mdns
+  timeout  : 5
+  flags    : Request A records
+  reach    : 0x00000000 (Not Reachable)
+  order    : 300000

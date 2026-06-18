@@ -18,7 +18,7 @@ import {
   UPDATE_CHECK_CACHE_FILE,
 } from "../../core/paths";
 import { readSingBoxConfig } from "../../core/singbox-config";
-import { type OtherVpnInterface, detectVpnConflicts } from "../../core/vpn-conflicts";
+import { type DnsConflict, type OtherVpnInterface, detectVpnConflicts } from "../../core/vpn-conflicts";
 import { requireRoot } from "../root";
 import { checkUpdateAvailable } from "./update";
 
@@ -38,6 +38,7 @@ export interface StatusResult {
   updateAvailable: string | null;
   otherVpnInterfaces: OtherVpnInterface[];
   vpnRoutingConflict: string | null;
+  vpnDnsConflicts: DnsConflict[];
 }
 
 async function isPfEnabled(exec: Exec): Promise<boolean> {
@@ -87,6 +88,7 @@ export async function gatherStatus(
     updateAvailable: await checkUpdateAvailable(exec, pkg.version, updateCheckCachePath),
     otherVpnInterfaces: vpnConflicts.otherInterfaces,
     vpnRoutingConflict: vpnConflicts.routingConflict,
+    vpnDnsConflicts: vpnConflicts.dnsConflicts,
   };
 }
 
@@ -123,6 +125,11 @@ export function formatStatus(status: StatusResult): string {
     }
     if (status.vpnRoutingConflict !== null) {
       lines.push(`WARNING: default route is through ${status.vpnRoutingConflict} — AI tool traffic may not be protected`);
+    }
+    for (const dns of status.vpnDnsConflicts) {
+      lines.push(
+        `WARNING: ${dns.iface} is pushing DNS servers: ${dns.servers.join(", ")} — apps may resolve AI domain IPs not covered by vpnctl's pf tables`,
+      );
     }
   }
 

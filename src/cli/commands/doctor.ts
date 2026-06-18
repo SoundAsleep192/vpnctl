@@ -108,6 +108,14 @@ export async function checkVpnConflicts(exec: Exec, singboxConfig: unknown): Pro
     });
   }
 
+  for (const dns of conflicts.dnsConflicts) {
+    checks.push({
+      name: "VPN DNS override",
+      status: "warn",
+      detail: `${dns.iface} is pushing DNS servers (${dns.servers.join(", ")}) — apps may resolve AI domain IPs not covered by vpnctl's pf tables`,
+    });
+  }
+
   return checks;
 }
 

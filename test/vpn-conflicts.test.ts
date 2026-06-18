@@ -2,7 +2,7 @@ import { describe, expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import type { Exec, ExecResult } from "../src/core/exec";
-import { detectOtherVpnInterfaces, detectVpnConflicts, getConfiguredTunInterface } from "../src/core/vpn-conflicts";
+import { detectOtherVpnInterfaces, detectVpnConflicts, getConfiguredTunInterface, parseDnsConflicts } from "../src/core/vpn-conflicts";
 import { sampleConfig } from "./fixtures/sing-box-config.sample";
 
 const FIXTURES_DIR = path.join(import.meta.dir, "fixtures");
@@ -95,6 +95,25 @@ describe("detectOtherVpnInterfaces", () => {
   });
 });
 
+describe("parseDnsConflicts", () => {
+  test("returns empty when no resolver is bound to a known VPN interface", () => {
+    expect(parseDnsConflicts(fixture("scutil-dns-no-vpn.txt"), new Set(["utun21"]))).toEqual([]);
+  });
+
+  test("returns conflict when a resolver is bound to a known VPN interface", () => {
+    const result = parseDnsConflicts(fixture("scutil-dns-vpn.txt"), new Set(["utun21"]));
+    expect(result).toEqual([{ iface: "utun21", servers: ["192.168.151.5", "172.18.148.3"] }]);
+  });
+
+  test("ignores resolvers bound to interfaces not in the VPN set", () => {
+    expect(parseDnsConflicts(fixture("scutil-dns-vpn.txt"), new Set(["ppp0"]))).toEqual([]);
+  });
+
+  test("returns empty for empty output", () => {
+    expect(parseDnsConflicts("", new Set(["utun21"]))).toEqual([]);
+  });
+});
+
 describe("detectVpnConflicts", () => {
   test("no conflicts when vpnctl tunnel is the default route and no other VPN interfaces", async () => {
     const exec = makeExec({
@@ -105,6 +124,7 @@ describe("detectVpnConflicts", () => {
     const result = await detectVpnConflicts(exec, "utun20");
     expect(result.otherInterfaces).toEqual([]);
     expect(result.routingConflict).toBeNull();
+    expect(result.dnsConflicts).toEqual([]);
   });
 
   test("routing conflict when a competing utun is the default route", async () => {
@@ -115,9 +135,25 @@ describe("detectVpnConflicts", () => {
       "/sbin/ifconfig utun21": fixture("ifconfig-utun21-other.txt"),
       "/sbin/ifconfig ppp0": fixture("ifconfig-ppp0.txt"),
       "/sbin/route -n get 1.1.1.1": ROUTE_GET_1_1_1_1_VIA_UTUN21,
+      "/usr/sbin/scutil --dns": fixture("scutil-dns-no-vpn.txt"),
     });
     const result = await detectVpnConflicts(exec, "utun20");
     expect(result.routingConflict).toBe("utun21");
+    expect(result.dnsConflicts).toEqual([]);
+  });
+
+  test("DNS conflict when competing VPN pushes custom DNS servers", async () => {
+    const exec = makeExec({
+      "/sbin/ifconfig -lu": IFCONFIG_LU_WITH_COMPETING,
+      "/sbin/ifconfig utun0": noInetIfconfig("utun0"),
+      "/sbin/ifconfig utun1": noInetIfconfig("utun1"),
+      "/sbin/ifconfig utun21": fixture("ifconfig-utun21-other.txt"),
+      "/sbin/ifconfig ppp0": fixture("ifconfig-ppp0.txt"),
+      "/sbin/route -n get 1.1.1.1": ROUTE_GET_1_1_1_1_VIA_UTUN20,
+      "/usr/sbin/scutil --dns": fixture("scutil-dns-vpn.txt"),
+    });
+    const result = await detectVpnConflicts(exec, "utun20");
+    expect(result.dnsConflicts).toEqual([{ iface: "utun21", servers: ["192.168.151.5", "172.18.148.3"] }]);
   });
 
   test("routing conflict when a ppp interface is the default route", async () => {
@@ -125,6 +161,7 @@ describe("detectVpnConflicts", () => {
       "/sbin/ifconfig -lu": "lo0 en0 ppp0\n",
       "/sbin/ifconfig ppp0": fixture("ifconfig-ppp0.txt"),
       "/sbin/route -n get 1.1.1.1": ROUTE_GET_1_1_1_1_VIA_PPP0,
+      "/usr/sbin/scutil --dns": fixture("scutil-dns-no-vpn.txt"),
     });
     const result = await detectVpnConflicts(exec, null);
     expect(result.otherInterfaces).toEqual([{ name: "ppp0", inet: "192.168.100.2" }]);
@@ -140,6 +177,7 @@ describe("detectVpnConflicts", () => {
     const result = await detectVpnConflicts(exec, null);
     expect(result.otherInterfaces).toEqual([]);
     expect(result.routingConflict).toBeNull();
+    expect(result.dnsConflicts).toEqual([]);
   });
 
   test("other VPN interfaces detected but no routing conflict when vpnctl is default route", async () => {
@@ -150,6 +188,7 @@ describe("detectVpnConflicts", () => {
       "/sbin/ifconfig utun21": fixture("ifconfig-utun21-other.txt"),
       "/sbin/ifconfig ppp0": fixture("ifconfig-ppp0.txt"),
       "/sbin/route -n get 1.1.1.1": ROUTE_GET_1_1_1_1_VIA_UTUN20,
+      "/usr/sbin/scutil --dns": fixture("scutil-dns-no-vpn.txt"),
     });
     const result = await detectVpnConflicts(exec, "utun20");
     expect(result.otherInterfaces).toHaveLength(2);

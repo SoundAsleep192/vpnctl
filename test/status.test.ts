@@ -79,6 +79,7 @@ describe("gatherStatus", () => {
         updateAvailable: null,
         otherVpnInterfaces: [],
         vpnRoutingConflict: null,
+        vpnDnsConflicts: [],
       });
     } finally {
       await cleanup();
@@ -128,6 +129,7 @@ describe("gatherStatus", () => {
         updateAvailable: null,
         otherVpnInterfaces: [],
         vpnRoutingConflict: null,
+        vpnDnsConflicts: [],
       });
     } finally {
       await cleanup();
@@ -152,6 +154,7 @@ describe("formatStatus", () => {
     updateAvailable: null,
     otherVpnInterfaces: [],
     vpnRoutingConflict: null,
+    vpnDnsConflicts: [],
   };
 
   test("renders human-readable sections", () => {
@@ -195,6 +198,16 @@ describe("formatStatus", () => {
     expect(output).toContain("=== other VPN interfaces ===");
     expect(output).toContain("utun21: 10.8.0.5");
     expect(output).toContain("WARNING: default route is through utun21");
+  });
+
+  test("shows DNS override warning when competing VPN pushes custom DNS servers", () => {
+    const output = formatStatus({
+      ...base,
+      otherVpnInterfaces: [{ name: "utun21", inet: "10.8.0.5" }],
+      vpnDnsConflicts: [{ iface: "utun21", servers: ["10.10.0.1", "10.10.0.2"] }],
+    });
+    expect(output).toContain("=== other VPN interfaces ===");
+    expect(output).toContain("WARNING: utun21 is pushing DNS servers: 10.10.0.1, 10.10.0.2");
   });
 
   test("omits other VPN section when no competing interfaces", () => {
