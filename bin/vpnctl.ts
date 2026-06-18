@@ -17,6 +17,7 @@ import { runUninstall } from "../src/cli/commands/uninstall";
 import { runUp } from "../src/cli/commands/up";
 import { runUpdate } from "../src/cli/commands/update";
 import { runWrapAdd, runWrapList, runWrapRemove } from "../src/cli/commands/wrap";
+import { runYield } from "../src/cli/commands/yield";
 
 const program = new Command();
 
@@ -57,6 +58,13 @@ program
   .description("stop the tunnel daemon (requires root)")
   .action(async () => {
     await runDown();
+  });
+
+program
+  .command("yield")
+  .description("suspend the pf killswitch while keeping the tunnel running — for coexisting with a corporate VPN (requires root)")
+  .action(async () => {
+    await runYield();
   });
 
 program

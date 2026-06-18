@@ -55,6 +55,7 @@ describe("gatherStatus", () => {
         "/bin/kill -0 1": { exitCode: 1 },
         "/sbin/route -n get 1.1.1.1": { stdout: "interface: en0\n" },
         "/sbin/route -n get 8.8.8.8": { stdout: "interface: en0\n" },
+        "/sbin/ifconfig -lu": { stdout: "lo0 en0\n" },
         "/bin/launchctl print system/com.vpnctl.monitor": { exitCode: 1 },
         "/bin/launchctl print system/com.vpnctl.tunnel": { exitCode: 1 },
         [LATEST_RELEASE_CALL]: UP_TO_DATE_RELEASE_RESPONSE,
@@ -76,6 +77,8 @@ describe("gatherStatus", () => {
         sinkholeActive: false,
         publicIp: null,
         updateAvailable: null,
+        otherVpnInterfaces: [],
+        vpnRoutingConflict: null,
       });
     } finally {
       await cleanup();
@@ -100,6 +103,7 @@ describe("gatherStatus", () => {
         "/bin/kill -0 4242": { exitCode: 0 },
         "/sbin/route -n get 172.19.0.1": { stdout: "interface: utun20\n" },
         "/sbin/route -n get 1.1.1.1": { stdout: "interface: utun20\n" },
+        "/sbin/ifconfig -lu": { stdout: "lo0 en0 utun20\n" },
         "/usr/bin/dig +short myip.opendns.com @resolver1.opendns.com": { stdout: "203.0.113.7\n" },
         "/bin/launchctl print system/com.vpnctl.monitor": { exitCode: 0 },
         "/bin/launchctl print system/com.vpnctl.tunnel": { exitCode: 0 },
@@ -122,6 +126,8 @@ describe("gatherStatus", () => {
         sinkholeActive: true,
         publicIp: "203.0.113.7",
         updateAvailable: null,
+        otherVpnInterfaces: [],
+        vpnRoutingConflict: null,
       });
     } finally {
       await cleanup();
@@ -144,6 +150,8 @@ describe("formatStatus", () => {
     sinkholeActive: false,
     publicIp: null,
     updateAvailable: null,
+    otherVpnInterfaces: [],
+    vpnRoutingConflict: null,
   };
 
   test("renders human-readable sections", () => {
@@ -165,6 +173,33 @@ describe("formatStatus", () => {
   test("includes the public ip section when present", () => {
     const output = formatStatus({ ...base, publicIp: "203.0.113.7" });
     expect(output).toContain("=== public ip ===\n203.0.113.7");
+  });
+
+  test("shows other VPN interfaces section when competing interfaces detected", () => {
+    const output = formatStatus({
+      ...base,
+      otherVpnInterfaces: [{ name: "utun21", inet: "10.8.0.5" }],
+      vpnRoutingConflict: null,
+    });
+    expect(output).toContain("=== other VPN interfaces ===");
+    expect(output).toContain("utun21: 10.8.0.5");
+    expect(output).not.toContain("WARNING");
+  });
+
+  test("shows routing conflict warning when competing interface owns default route", () => {
+    const output = formatStatus({
+      ...base,
+      otherVpnInterfaces: [{ name: "utun21", inet: "10.8.0.5" }],
+      vpnRoutingConflict: "utun21",
+    });
+    expect(output).toContain("=== other VPN interfaces ===");
+    expect(output).toContain("utun21: 10.8.0.5");
+    expect(output).toContain("WARNING: default route is through utun21");
+  });
+
+  test("omits other VPN section when no competing interfaces", () => {
+    const output = formatStatus({ ...base, otherVpnInterfaces: [], vpnRoutingConflict: null });
+    expect(output).not.toContain("other VPN interfaces");
   });
 
   test("includes the update hint when a newer release is available", () => {

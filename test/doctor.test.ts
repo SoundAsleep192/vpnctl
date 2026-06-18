@@ -11,6 +11,7 @@ import {
   checkGeneratedSingBoxConfig,
   checkPfEnabled,
   checkSingBoxBinary,
+  checkVpnConflicts,
   formatDoctorReport,
   type DoctorCheck,
 } from "../src/cli/commands/doctor";
@@ -239,6 +240,65 @@ describe("checkForUpdate", () => {
         detail: "unable to check for updates — currently v0.1.5",
       });
     });
+  });
+});
+
+describe("checkVpnConflicts", () => {
+  const noInetIfconfig = (name: string): string => `${name}: flags=8010<POINTOPOINT,MULTICAST> mtu 1500\n`;
+
+  test("ok check when no other VPN interfaces detected", async () => {
+    const exec = makeExec({
+      "/sbin/ifconfig -lu": { stdout: "lo0 en0 utun0\n" },
+      "/sbin/ifconfig utun0": { stdout: noInetIfconfig("utun0") },
+      "/sbin/route -n get 1.1.1.1": { stdout: "  interface: en0\n" },
+    });
+    const checks = await checkVpnConflicts(exec, null);
+    expect(checks).toHaveLength(1);
+    expect(checks[0]).toEqual({ name: "other VPN interfaces", status: "ok", detail: "none detected" });
+  });
+
+  test("warn when competing VPN interface detected, no routing conflict", async () => {
+    const exec = makeExec({
+      "/sbin/ifconfig -lu": { stdout: "lo0 en0 utun20 utun21\n" },
+      "/sbin/ifconfig utun21": {
+        stdout: "utun21: flags=8051<UP,POINTOPOINT,RUNNING,MULTICAST> mtu 1380\n\tinet 10.8.0.5 --> 10.8.0.5 netmask 0xffffffff\n",
+      },
+      "/sbin/route -n get 1.1.1.1": { stdout: "  interface: utun20\n" },
+    });
+    const singboxConfig = { inbounds: [{ type: "tun", interface_name: "utun20", address: ["172.19.0.1/30"] }] };
+    const checks = await checkVpnConflicts(exec, singboxConfig);
+    expect(checks).toHaveLength(1);
+    expect(checks[0]?.status).toBe("warn");
+    expect(checks[0]?.name).toBe("other VPN interfaces");
+    expect(checks[0]?.detail).toContain("utun21");
+    expect(checks[0]?.detail).not.toContain("vpnctl domains");
+    expect(checks[0]?.detail).toContain("vpnctl down");
+  });
+
+  test("two warn checks when competing VPN also wins default route", async () => {
+    const exec = makeExec({
+      "/sbin/ifconfig -lu": { stdout: "lo0 en0 utun20 utun21\n" },
+      "/sbin/ifconfig utun21": {
+        stdout: "utun21: flags=8051<UP,POINTOPOINT,RUNNING,MULTICAST> mtu 1380\n\tinet 10.8.0.5 --> 10.8.0.5 netmask 0xffffffff\n",
+      },
+      "/sbin/route -n get 1.1.1.1": { stdout: "  interface: utun21\n" },
+    });
+    const singboxConfig = { inbounds: [{ type: "tun", interface_name: "utun20", address: ["172.19.0.1/30"] }] };
+    const checks = await checkVpnConflicts(exec, singboxConfig);
+    expect(checks).toHaveLength(2);
+    expect(checks[0]?.status).toBe("warn");
+    expect(checks[1]?.status).toBe("warn");
+    expect(checks[1]?.name).toBe("VPN routing conflict");
+    expect(checks[1]?.detail).toContain("utun21");
+  });
+
+  test("treats malformed singbox config (null) as no trusted interface", async () => {
+    const exec = makeExec({
+      "/sbin/ifconfig -lu": { stdout: "lo0 en0\n" },
+      "/sbin/route -n get 1.1.1.1": { stdout: "  interface: en0\n" },
+    });
+    const checks = await checkVpnConflicts(exec, null);
+    expect(checks[0]?.status).toBe("ok");
   });
 });
 

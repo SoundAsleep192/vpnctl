@@ -11,7 +11,9 @@ import {
   PF_ANCHOR_NAME,
   UPDATE_CHECK_CACHE_FILE,
 } from "../../core/paths";
+import { readSingBoxConfig } from "../../core/singbox-config";
 import { compareVersions } from "../../core/version";
+import { detectVpnConflicts, getConfiguredTunInterface } from "../../core/vpn-conflicts";
 import { requireRoot } from "../root";
 import { resolveSingBoxPath } from "./install";
 import { getLatestVersion } from "./update";
@@ -81,6 +83,34 @@ export async function checkDaemon(exec: Exec, label: string): Promise<DoctorChec
   return { name: label, status: loaded ? "ok" : "warn", detail: loaded ? "loaded" : "not loaded" };
 }
 
+export async function checkVpnConflicts(exec: Exec, singboxConfig: unknown): Promise<DoctorCheck[]> {
+  const ownIface = getConfiguredTunInterface(singboxConfig);
+  const conflicts = await detectVpnConflicts(exec, ownIface);
+
+  const checks: DoctorCheck[] = [];
+
+  if (conflicts.otherInterfaces.length === 0) {
+    checks.push({ name: "other VPN interfaces", status: "ok", detail: "none detected" });
+  } else {
+    const names = conflicts.otherInterfaces.map((iface) => `${iface.name} (${iface.inet})`).join(", ");
+    checks.push({
+      name: "other VPN interfaces",
+      status: "warn",
+      detail: `${names} — vpnctl's killswitch may block their traffic; run \`sudo vpnctl down\` to suspend the killswitch, or \`sudo vpnctl up\` after connecting your VPN to restore AI-tool protection`,
+    });
+  }
+
+  if (conflicts.routingConflict !== null) {
+    checks.push({
+      name: "VPN routing conflict",
+      status: "warn",
+      detail: `default route is through ${conflicts.routingConflict}, not vpnctl's tunnel — AI tool traffic may not be protected; run \`vpnctl up\` after connecting your other VPN`,
+    });
+  }
+
+  return checks;
+}
+
 export async function checkForUpdate(
   exec: Exec,
   currentVersion: string = pkg.version,
@@ -124,6 +154,7 @@ export async function runDoctor(options: DoctorOptions = {}): Promise<void> {
   requireRoot();
 
   const exec = options.exec ?? realExec;
+  const singboxConfig = await readSingBoxConfig(GENERATED_SINGBOX_CONFIG).catch(() => null);
 
   const checks: DoctorCheck[] = [
     checkBunVersion(Bun.version),
@@ -134,6 +165,7 @@ export async function runDoctor(options: DoctorOptions = {}): Promise<void> {
     await checkAnchorLoaded(exec),
     await checkDaemon(exec, LAUNCHD_LABEL_MONITOR),
     await checkDaemon(exec, LAUNCHD_LABEL_TUNNEL),
+    ...(await checkVpnConflicts(exec, singboxConfig)),
     await checkForUpdate(exec),
   ];
 

@@ -1,0 +1,3 @@
+table <vpnctl_v4> persist
+table <vpnctl_v6> persist
+
