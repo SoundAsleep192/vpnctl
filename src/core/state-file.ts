@@ -46,6 +46,9 @@ export function classifyState(state: VpnState | null, nowMs: number, staleMs: nu
 export async function writeStateFile(tunnelUp: boolean, trustedIface: string | null, nowMs: number = Date.now()): Promise<void> {
   const state: VpnState = { tunnelUp, trustedIface, sinkholeActive: !tunnelUp, timestamp: nowMs };
   await mkdir(LOG_DIR, { recursive: true });
+  // LOG_DIR is root-owned but must be traversable by the unprivileged tray agent.
+  // chmod after mkdir: recursive mkdir doesn't apply a mode to existing dirs.
+  await chmod(LOG_DIR, 0o755);
   await Bun.write(STATE_FILE, serializeState(state));
   await chmod(STATE_FILE, STATE_FILE_MODE);
 }
