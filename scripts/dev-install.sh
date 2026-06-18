@@ -51,7 +51,12 @@ echo "--- redeploying system daemons (sudo) ---"
 sudo "$PREFIX/vpnctl" install
 
 echo "--- redeploying tray agent ---"
-"$PREFIX/vpnctl" tray install
+# tray is a per-user LaunchAgent; must run as the real user, not root
+if [[ -n "${SUDO_USER:-}" ]]; then
+  sudo -u "$SUDO_USER" "$PREFIX/vpnctl" tray install
+else
+  "$PREFIX/vpnctl" tray install
+fi
 
 echo ""
 echo "=== dev-install done ==="
