@@ -1,7 +1,7 @@
 import type { Config } from "./config";
 import type { Exec } from "./exec";
 import { getTunnelState, type TunnelState } from "./network";
-import { GENERATED_SINGBOX_CONFIG, HOSTS_FILE, TUNNEL_PID_FILE } from "./paths";
+import { GENERATED_SINGBOX_CONFIG, HOSTS_FILE, TUNNEL_PID_FILE, YIELD_MODE_FILE } from "./paths";
 import { generateAnchorRules, writeAnchor } from "./pf-anchor";
 import { applyHosts, computeHosts } from "./sinkhole";
 import { readSingBoxConfig } from "./singbox-config";
@@ -12,14 +12,26 @@ export interface EnforcementPlan {
   anchorRules: string;
 }
 
-export function planEnforcement(currentHosts: string, domains: string[], trustedIface: string | null, tunnelUp: boolean): EnforcementPlan {
+export function planEnforcement(
+  currentHosts: string,
+  domains: string[],
+  trustedIface: string | null,
+  tunnelUp: boolean,
+  yieldMode = false,
+): EnforcementPlan {
   const { content, changed } = computeHosts(currentHosts, domains, !tunnelUp);
-  return { hostsContent: content, hostsChanged: changed, anchorRules: generateAnchorRules({ trustedIface }) };
+  return { hostsContent: content, hostsChanged: changed, anchorRules: generateAnchorRules({ trustedIface, yieldMode }) };
 }
 
-export async function applyTunnelState(exec: Exec, domains: string[], trustedIface: string | null, tunnelUp: boolean): Promise<void> {
+export async function applyTunnelState(
+  exec: Exec,
+  domains: string[],
+  trustedIface: string | null,
+  tunnelUp: boolean,
+  yieldMode = false,
+): Promise<void> {
   const currentHosts = await Bun.file(HOSTS_FILE).text();
-  const plan = planEnforcement(currentHosts, domains, trustedIface, tunnelUp);
+  const plan = planEnforcement(currentHosts, domains, trustedIface, tunnelUp, yieldMode);
 
   if (plan.hostsChanged) await applyHosts(exec, plan.hostsContent);
   await writeAnchor(exec, plan.anchorRules);
@@ -32,8 +44,9 @@ export async function reconcileTunnelState(
 ): Promise<TunnelState> {
   const singboxConfig = await readSingBoxConfig(singboxConfigPath);
   const state = await getTunnelState(exec, singboxConfig, TUNNEL_PID_FILE);
+  const yieldMode = await Bun.file(YIELD_MODE_FILE).exists();
 
-  await applyTunnelState(exec, config.domains, state.trustedIface, state.tunnelUp);
+  await applyTunnelState(exec, config.domains, state.trustedIface, state.tunnelUp, yieldMode);
 
   return state;
 }

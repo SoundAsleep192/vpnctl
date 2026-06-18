@@ -18,6 +18,7 @@ import {
   UPDATE_CHECK_CACHE_FILE,
 } from "../../core/paths";
 import { readSingBoxConfig } from "../../core/singbox-config";
+import { type OtherVpnInterface, detectVpnConflicts } from "../../core/vpn-conflicts";
 import { requireRoot } from "../root";
 import { checkUpdateAvailable } from "./update";
 
@@ -35,6 +36,8 @@ export interface StatusResult {
   sinkholeActive: boolean;
   publicIp: string | null;
   updateAvailable: string | null;
+  otherVpnInterfaces: OtherVpnInterface[];
+  vpnRoutingConflict: string | null;
 }
 
 async function isPfEnabled(exec: Exec): Promise<boolean> {
@@ -66,6 +69,8 @@ export async function gatherStatus(
 ): Promise<StatusResult> {
   const { trustedIface: trustedInterface, publicIface: publicInterface, tunnelUp } = await getTunnelState(exec, singboxConfig, pidFile);
 
+  const vpnConflicts = await detectVpnConflicts(exec, trustedInterface);
+
   return {
     pfEnabled: await isPfEnabled(exec),
     anchorLoaded: await isAnchorLoaded(exec),
@@ -80,6 +85,8 @@ export async function gatherStatus(
     sinkholeActive: hostsContent.includes(HOSTS_MARKER_BEGIN),
     publicIp: includeIp ? await resolvePublicIp(exec) : null,
     updateAvailable: await checkUpdateAvailable(exec, pkg.version, updateCheckCachePath),
+    otherVpnInterfaces: vpnConflicts.otherInterfaces,
+    vpnRoutingConflict: vpnConflicts.routingConflict,
   };
 }
 
@@ -108,6 +115,16 @@ export function formatStatus(status: StatusResult): string {
     "=== sinkhole ===",
     `/etc/hosts: ${onOff(status.sinkholeActive, "active", "inactive")}`,
   ];
+
+  if (status.otherVpnInterfaces.length > 0) {
+    lines.push("", "=== other VPN interfaces ===");
+    for (const iface of status.otherVpnInterfaces) {
+      lines.push(`${iface.name}: ${iface.inet}`);
+    }
+    if (status.vpnRoutingConflict !== null) {
+      lines.push(`WARNING: default route is through ${status.vpnRoutingConflict} — AI tool traffic may not be protected`);
+    }
+  }
 
   if (status.publicIp !== null) {
     lines.push("", "=== public ip ===", status.publicIp);

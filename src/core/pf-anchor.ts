@@ -6,7 +6,7 @@ import { PF_ANCHOR_FILE, PF_ANCHOR_NAME, PF_TABLE_V4, PF_TABLE_V6 } from "./path
 
 const UTUN_PATTERN = /^utun[0-9]+$/;
 
-export function generateAnchorRules(opts: { trustedIface: string | null }): string {
+export function generateAnchorRules(opts: { trustedIface: string | null; yieldMode?: boolean }): string {
   const lines = [`table <${PF_TABLE_V4}> persist`, `table <${PF_TABLE_V6}> persist`, ""];
 
   if (opts.trustedIface !== null && UTUN_PATTERN.test(opts.trustedIface)) {
@@ -17,10 +17,12 @@ export function generateAnchorRules(opts: { trustedIface: string | null }): stri
     );
   }
 
-  lines.push(
-    `block drop log quick inet  proto { tcp udp } from any to <${PF_TABLE_V4}>`,
-    `block drop log quick inet6 proto { tcp udp } from any to <${PF_TABLE_V6}>`,
-  );
+  if (!opts.yieldMode) {
+    lines.push(
+      `block drop log quick inet  proto { tcp udp } from any to <${PF_TABLE_V4}>`,
+      `block drop log quick inet6 proto { tcp udp } from any to <${PF_TABLE_V6}>`,
+    );
+  }
 
   return lines.join("\n") + "\n";
 }

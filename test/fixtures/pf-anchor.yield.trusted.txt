@@ -1,0 +1,6 @@
+table <vpnctl_v4> persist
+table <vpnctl_v6> persist
+
+pass out quick on utun20 inet  proto { tcp udp } from any to <vpnctl_v4>
+pass out quick on utun20 inet6 proto { tcp udp } from any to <vpnctl_v6>
+
