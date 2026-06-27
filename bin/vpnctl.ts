@@ -10,6 +10,17 @@ import { runExec } from "../src/cli/commands/exec";
 import { runInstall } from "../src/cli/commands/install";
 import { runLogs } from "../src/cli/commands/logs";
 import { runRefresh } from "../src/cli/commands/refresh";
+import {
+  parseSandboxPreset,
+  runSandboxClean,
+  runSandboxCode,
+  runSandboxDoctor,
+  runSandboxLogs,
+  runSandboxRun,
+  runSandboxShell,
+  runSandboxStatus,
+  runSandboxStop,
+} from "../src/core/sandbox";
 import { runSetup } from "../src/cli/commands/setup";
 import { runStatus } from "../src/cli/commands/status";
 import { runTrayInstall, runTrayUninstall } from "../src/cli/commands/tray";
@@ -18,6 +29,7 @@ import { runUp } from "../src/cli/commands/up";
 import { runUpdate } from "../src/cli/commands/update";
 import { runWrapAdd, runWrapList, runWrapRemove } from "../src/cli/commands/wrap";
 import { runYield } from "../src/cli/commands/yield";
+import { loadConfig } from "../src/core/config";
 
 const program = new Command();
 
@@ -69,10 +81,11 @@ program
 
 program
   .command("exec")
-  .description("preflight (tunnel up, optional country block) then run the given command")
+  .description("preflight (tunnel up, optional country block), resolve exit profile, inject TZ, then run the given command")
+  .option("--allow-unknown-profile", "debug escape hatch: run with TZ=UTC when the exit profile cannot be resolved")
   .argument("[command...]", "command (and args) to run after a successful preflight, e.g. -- claude")
-  .action(async (command: string[]) => {
-    await runExec(command);
+  .action(async (command: string[], opts: { allowUnknownProfile?: boolean }) => {
+    await runExec(command, { allowUnknownProfile: opts.allowUnknownProfile });
   });
 
 program
@@ -174,6 +187,115 @@ wrapCommand
   .option("--dir <path>", "directory to scan (default: ~/.local/bin)")
   .action(async (opts: { dir?: string }) => {
     await runWrapList({ dir: opts.dir });
+  });
+
+function collectOption(value: string, previous: string[]): string[] {
+  return [...previous, value];
+}
+
+const sandboxCommand = program.command("sandbox").description("run AI agents inside a Docker VPN sandbox");
+
+sandboxCommand
+  .command("run")
+  .description("run a command or preset in the protected Docker runtime")
+  .option("--preset <preset>", "preset to run: claude or codex")
+  .requiredOption("--workspace <path>", "workspace directory to mount deliberately")
+  .option("--secret <name>", "explicit named credential mount: claude or codex", collectOption, [])
+  .option("--mount-secret <spec>", "explicit secret mount: source:target[:ro|rw]", collectOption, [])
+  .option("--keep", "keep sandbox containers after the command exits")
+  .option("--allow-unknown-profile", "debug escape hatch: run with TZ=UTC when the sandbox exit profile cannot be resolved")
+  .argument("[command...]", "command (and args) to run after --")
+  .action(
+    async (
+      command: string[],
+      opts: {
+        preset?: string;
+        workspace: string;
+        secret: string[];
+        mountSecret: string[];
+        keep?: boolean;
+        allowUnknownProfile?: boolean;
+      },
+    ) => {
+      const exitCode = await runSandboxRun({
+        config: await loadConfig(),
+        workspace: opts.workspace,
+        command,
+        preset: parseSandboxPreset(opts.preset),
+        secrets: opts.secret,
+        mountSecrets: opts.mountSecret,
+        keep: opts.keep,
+        allowUnknownProfile: opts.allowUnknownProfile,
+      });
+      process.exit(exitCode);
+    },
+  );
+
+sandboxCommand
+  .command("code")
+  .description("open VS Code with its remote backend inside the protected Docker runtime")
+  .option("--preset <preset>", "preset to configure: claude or codex", "claude")
+  .requiredOption("--workspace <path>", "workspace directory to mount deliberately")
+  .option("--secret <name>", "explicit named credential mount: claude or codex", collectOption, [])
+  .option("--mount-secret <spec>", "explicit secret mount: source:target[:ro|rw]", collectOption, [])
+  .option("--allow-unknown-profile", "debug escape hatch: run with TZ=UTC when the sandbox exit profile cannot be resolved")
+  .action(async (opts: { preset?: string; workspace: string; secret: string[]; mountSecret: string[]; allowUnknownProfile?: boolean }) => {
+    const exitCode = await runSandboxCode({
+      config: await loadConfig(),
+      workspace: opts.workspace,
+      preset: parseSandboxPreset(opts.preset),
+      secrets: opts.secret,
+      mountSecrets: opts.mountSecret,
+      allowUnknownProfile: opts.allowUnknownProfile,
+    });
+    process.exit(exitCode);
+  });
+
+sandboxCommand
+  .command("status")
+  .description("show sandbox containers, exit profile, killswitch, and mounts")
+  .action(async () => {
+    await runSandboxStatus();
+  });
+
+sandboxCommand
+  .command("logs")
+  .description("show sandbox VPN and/or agent logs")
+  .option("--vpn", "show only VPN sidecar logs")
+  .option("--agent", "show only agent container logs")
+  .option("-f, --follow", "follow log output")
+  .option("-n, --lines <count>", "number of lines to show", (value) => Number(value))
+  .action(async (opts: { vpn?: boolean; agent?: boolean; follow?: boolean; lines?: number }) => {
+    await runSandboxLogs(opts);
+  });
+
+sandboxCommand
+  .command("shell")
+  .description("open a shell in the protected Docker runtime")
+  .action(async () => {
+    const exitCode = await runSandboxShell();
+    process.exit(exitCode);
+  });
+
+sandboxCommand
+  .command("stop")
+  .description("stop sandbox containers")
+  .action(async () => {
+    await runSandboxStop();
+  });
+
+sandboxCommand
+  .command("clean")
+  .description("stop sandbox containers and remove sandbox images/assets")
+  .action(async () => {
+    await runSandboxClean();
+  });
+
+sandboxCommand
+  .command("doctor")
+  .description("diagnose Docker sandbox prerequisites and cached assets")
+  .action(async () => {
+    await runSandboxDoctor();
   });
 
 const trayCommand = program.command("tray").description("manage the menu-bar status indicator (per-user LaunchAgent)");
