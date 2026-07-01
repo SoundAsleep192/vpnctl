@@ -2,8 +2,8 @@
 
 [![CI](https://github.com/SoundAsleep192/vpnctl/actions/workflows/ci.yml/badge.svg)](https://github.com/SoundAsleep192/vpnctl/actions/workflows/ci.yml)
 
-Fail-closed VPN tooling for AI dev tools: macOS pf/DNS killswitch for the host and a
-Docker sandbox runtime for protected agent processes.
+Fail-closed VPN tooling for protected domains: macOS pf/DNS killswitch for the host
+and a Docker sandbox runtime for protected agent processes.
 
 When the tunnel is down or DNS resolution fails, traffic to the configured domains is
 blocked by default — not allowed through.
@@ -13,6 +13,7 @@ blocked by default — not allowed through.
 - macOS (Apple Silicon or Intel)
 - [sing-box](https://sing-box.sagernet.org/)
 - Docker Desktop
+- A VLESS+Reality `vless://...` share link from your VPN provider
 
 ## Install
 
@@ -29,17 +30,22 @@ vpnctl setup
 sudo vpnctl install
 ```
 
+`vpnctl setup` asks for the VLESS+Reality link and uses it to create
+`~/.config/vpnctl/config.json`. vpnctl does not provide a VPN server by itself.
+
 ## Usage
 
 ```sh
-vpnctl setup              # interactively configure (VLESS+Reality URI, domains, TUN interface, DNS)
-vpnctl install             # install pf anchor, /etc/pf.conf patch, and LaunchDaemons (requires root)
+vpnctl                       # open the interactive dashboard in a terminal
+vpnctl tui|ui                # open the interactive dashboard explicitly
+vpnctl setup [--routing-mode full|split]    # configure VLESS+Reality URI, domains, TUN interface, DNS, routing
+vpnctl install [--routing-mode full|split]  # install pf anchor, LaunchDaemons, and menu-bar icon (requires root)
 vpnctl uninstall [--purge] # remove LaunchDaemons, pf anchor, pf.conf patch, /etc/hosts sinkhole (requires root)
 vpnctl up                  # start (or restart) the tunnel daemon (requires root)
 vpnctl down                # stop the tunnel daemon (requires root)
 vpnctl status [--ip]       # show pf, tunnel, daemon, and sinkhole state (requires root)
 vpnctl refresh             # resolve domains, write pf tables, recompute sinkhole/anchor state (requires root)
-vpnctl check [--full]      # probe AI dev tool endpoints over the tunnel (requires root)
+vpnctl check [--full]      # probe protected domains over the tunnel (requires root)
 vpnctl exec -- <command>   # preflight, resolve exit profile, inject TZ, then run <command>
 vpnctl sandbox run --preset claude --workspace .  # run Claude in Docker VPN sandbox
 vpnctl sandbox run --preset codex --workspace .   # run Codex in Docker VPN sandbox
@@ -49,9 +55,15 @@ vpnctl domains list|add|remove <domain>  # manage the domain allowlist
 vpnctl logs [--monitor] [--tunnel] [-f] [-n <count>]  # tail monitor/tunnel logs
 vpnctl doctor              # diagnose bun, config, sing-box, pf, and daemons (requires root)
 vpnctl update              # check for a newer release, install it, and redeploy daemons (requires root)
-vpnctl audit [--watch <s>] [--log] [--install-agent] [--uninstall-agent]  # snapshot AI dev tool connections
-vpnctl tray install|uninstall  # menu-bar icon: green = protected, red = fail-closed, gray = stale/off
+vpnctl audit [--watch <s>] [--log] [--install-agent] [--uninstall-agent]  # snapshot configured process connections
+vpnctl tray install|uninstall  # reinstall/remove the menu-bar icon manually
 ```
+
+Routing mode controls the sing-box fallback route. `full` routes all non-private
+traffic through the proxy. `split` routes only configured domain suffixes through
+the proxy and leaves other traffic direct. New configs default to `split`.
+`vpnctl install --routing-mode full` persists the choice before regenerating
+`sing-box.json`.
 
 ## Protected Docker sandbox
 
@@ -67,19 +79,17 @@ state. Host timezone, system clock, geolocation, global network settings, and ma
 firewall state are never changed.
 
 The `claude` and `codex` presets build an agent image with the corresponding CLIs
-installed. Authentication is still explicit; no host credentials are mounted unless
-requested.
+installed and mount their matching host credentials (`~/.claude` or `~/.codex`) into
+the agent container. Arbitrary commands do not receive credentials unless requested.
 
 Before starting the agent, vpnctl resolves the exit profile from inside the sandbox
 namespace and injects `TZ=<exit timezone>`. Protected mode fails closed if no usable
 country/timezone profile can be resolved. `--allow-unknown-profile` is a debug escape
 hatch and uses `TZ=UTC` with a warning instead of silently inheriting the host timezone.
 
-Credentials are never mounted by default. Mount them only when intended:
+For arbitrary commands, mount credentials only when intended:
 
 ```sh
-vpnctl sandbox run --preset claude --workspace . --secret claude
-vpnctl sandbox run --preset codex --workspace . --secret codex
 vpnctl sandbox run --workspace . --mount-secret ~/.config/tool:/home/developer/.config/tool:ro -- tool
 ```
 
@@ -118,8 +128,10 @@ bun install
 bun run bin/vpnctl.ts --help
 ```
 
-See [AGENTS.md](AGENTS.md) for code style, testing conventions, and quality gates, and
-[CONTRIBUTING.md](CONTRIBUTING.md) for the git workflow and CI/CD pipeline.
+Start with [docs/](docs/README.md) for architecture, workflows, project structure,
+operations, testing, and agent rules. See [AGENTS.md](AGENTS.md) for the compact
+agent-facing rules and [CONTRIBUTING.md](CONTRIBUTING.md) for the git workflow and
+CI/CD pipeline.
 
 Planned and in-progress work is tracked in
 [GitHub Issues](https://github.com/SoundAsleep192/vpnctl/issues), grouped by

@@ -25,7 +25,9 @@ Before opening a PR, run on changed files (whole repo for broad changes):
 4. `bun run format` — apply Prettier
 5. For `.md` changes: `bun run lint:md`
 
-See [AGENTS.md](AGENTS.md) for code style and testing conventions.
+See [docs/](docs/README.md) for the full project documentation, especially
+[docs/project-rules.md](docs/project-rules.md) and [docs/testing.md](docs/testing.md).
+Tests in this repo use English descriptions and no comments.
 
 ## CI/CD
 

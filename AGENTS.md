@@ -1,16 +1,20 @@
 # Agent instructions for vpnctl
 
 `vpnctl` is a Bun + TypeScript fail-closed VPN killswitch (pf firewall + DNS sinkhole +
-sing-box VLESS/Reality tunnel) for AI dev tools. **v1 is CLI-only, macOS-only** — that
-was a staged-rollout choice to get a working core shipped first, not a permanent
-constraint. Cross-platform support (Linux/WSL, Windows) and a UI surface beyond the
-CLI (status indicator, interactive TUI, eventually a full GUI) are planned and tracked
-in GitHub Issues — don't treat "CLI-only" or "macOS-only" as architectural rules when
-designing new work. The one real constraint: stay on Bun + TypeScript (Rust is the
-agreed fallback only if Bun hard-blocks cross-platform daemon support — not Swift,
-not an open-ended language/framework survey).
+sing-box VLESS/Reality tunnel) for protected domains and protected agent processes.
+This is the vpnctl project, not Ekocrop: do not import Ekocrop Jira, GitLab, naming,
+or Russian-test conventions into this repo. **v1 is macOS-first**; that was a
+staged-rollout choice to get a working core shipped first, not a permanent
+constraint. Cross-platform support (Linux/WSL, Windows) and richer UI surfaces are
+planned and tracked in GitHub Issues. Do not treat "CLI-only" or "macOS-only" as
+architectural rules when designing new work. The one real constraint: stay on Bun +
+TypeScript (Rust is the agreed fallback only if Bun hard-blocks cross-platform daemon
+support, not Swift, not an open-ended language/framework survey).
 Planned and in-progress work is tracked in
 [GitHub Issues](https://github.com/SoundAsleep192/vpnctl/issues).
+
+Comprehensive project documentation lives in [docs/](docs/README.md). Keep it updated
+when changing architecture, workflow, project structure, safety rules, or test policy.
 
 ## Quality gates
 
@@ -48,6 +52,11 @@ Before reporting any task done, run on changed files (whole repo for broad chang
 
 ## Testing
 
+- Test descriptions must be English. Do not use Russian descriptions in `describe`,
+  `test`, or `it`. Localized product strings are allowed inside assertions when the
+  behavior being tested is localization.
+- Tests must not contain comments or JSDoc blocks. Make the test name, setup values,
+  and helper names carry the intent.
 - All shell-outs go through the injectable `Exec` type (`src/core/exec.ts`); tests
   pass fake `Exec` implementations keyed on `cmd`/`args`, never mock `Bun.spawn`
   directly.
