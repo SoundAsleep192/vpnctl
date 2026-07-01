@@ -21,7 +21,6 @@ For broad runtime changes:
 
 ```sh
 bun run build
-bun run build:daemons
 ```
 
 ## Test writing rules

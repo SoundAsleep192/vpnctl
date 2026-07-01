@@ -61,7 +61,7 @@ vpnctl_uninstall() {
 }
 
 # --- synthetic-old build (update-race regression fixture) ---------------------
-RELEASE_BINARIES=(vpnctl vpnctl-monitor vpnctl-tunnel)
+RELEASE_BINARIES=(vpnctl vpnctl-monitor vpnctl-tunnel vpnctl-tray)
 
 # build_synthetic_old <version> <repo_root>
 # Compiles the current checkout into dist/ but with package.json pinned to an
@@ -78,11 +78,11 @@ build_synthetic_old() {
   trap "cp '$pkg_backup' '$repo_root/package.json'; rm -f '$pkg_backup'" RETURN
 
   sed -i '' "s/\"version\": \"[^\"]*\"/\"version\": \"$version\"/" "$repo_root/package.json"
-  (cd "$repo_root" && bun run build >/dev/null && bun run build:daemons >/dev/null)
+  (cd "$repo_root" && bun run build >/dev/null)
 }
 
 # install_binaries_to <dir> <from_dir>
-# Copies the three release binaries into an install dir and marks them
+# Copies the release binary aliases into an install dir and marks them
 # executable, mimicking what install.sh / a tarball extraction would leave.
 install_binaries_to() {
   local dir="$1"
@@ -90,7 +90,11 @@ install_binaries_to() {
   mkdir -p "$dir"
   local binary
   for binary in "${RELEASE_BINARIES[@]}"; do
-    cp "$from_dir/$binary" "$dir/$binary"
-    chmod +x "$dir/$binary"
+    rm -f "$dir/$binary"
   done
+  cp -p "$from_dir/vpnctl" "$dir/vpnctl"
+  ln "$dir/vpnctl" "$dir/vpnctl-monitor"
+  ln "$dir/vpnctl" "$dir/vpnctl-tunnel"
+  ln "$dir/vpnctl" "$dir/vpnctl-tray"
+  chmod +x "$dir/vpnctl" "$dir/vpnctl-monitor" "$dir/vpnctl-tunnel" "$dir/vpnctl-tray"
 }

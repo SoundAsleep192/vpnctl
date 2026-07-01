@@ -8,14 +8,18 @@ import type { TrayStatus } from "./state-file";
 const STATUS_NOTIFICATION_STATE_FILE = path.join(CONFIG_DIR, "tray-notification-state.json");
 const STATUS_NOTIFICATION_LOCK_DIR = path.join(CONFIG_DIR, "tray-notification-state.lock");
 const STALE_STATUS_NOTIFICATION_LOCK_MS = 10_000;
+export const FAIL_CLOSED_STATUS_NOTIFICATION_SETTLE_MS = 600;
 
-const STATUS_NOTIFICATION_TEXTS: Record<UiLanguage, Record<"protected" | "starting" | "fail-closed", DesktopNotification>> = {
+export type StatusNotificationTarget = "protected" | "fail-closed";
+
+export interface ScheduledStatusNotification {
+  status: StatusNotificationTarget;
+  delayMs: number;
+}
+
+const STATUS_NOTIFICATION_TEXTS: Record<UiLanguage, Record<StatusNotificationTarget, DesktopNotification>> = {
   en: {
     protected: { title: "vpnctl tunnel up", body: "Protected domains are routed through the VPN." },
-    starting: {
-      title: "vpnctl tunnel starting",
-      body: "Protected domains stay blocked until the tunnel connects.",
-    },
     "fail-closed": {
       title: "vpnctl tunnel down",
       body: "Protected domains are blocked until the tunnel reconnects.",
@@ -23,10 +27,6 @@ const STATUS_NOTIFICATION_TEXTS: Record<UiLanguage, Record<"protected" | "starti
   },
   ru: {
     protected: { title: "vpnctl: туннель включен", body: "Защищенные домены идут через VPN." },
-    starting: {
-      title: "vpnctl: туннель запускается",
-      body: "Защищенные домены заблокированы, пока туннель подключается.",
-    },
     "fail-closed": {
       title: "vpnctl: туннель выключен",
       body: "Защищенные домены заблокированы до переподключения туннеля.",
@@ -35,23 +35,27 @@ const STATUS_NOTIFICATION_TEXTS: Record<UiLanguage, Record<"protected" | "starti
 };
 
 export function statusNotification(status: TrayStatus, language: UiLanguage = detectSystemLanguage()): DesktopNotification | null {
-  if (status === "protected") {
-    return STATUS_NOTIFICATION_TEXTS[language].protected;
-  }
-
-  if (status === "starting") {
-    return STATUS_NOTIFICATION_TEXTS[language].starting;
-  }
-
-  if (status === "fail-closed") {
-    return STATUS_NOTIFICATION_TEXTS[language]["fail-closed"];
-  }
+  const target = statusNotificationTarget(status);
+  if (target !== null) return STATUS_NOTIFICATION_TEXTS[language][target];
 
   return null;
 }
 
-export async function shouldSendStatusNotification(
+export function statusNotificationTarget(status: TrayStatus): StatusNotificationTarget | null {
+  return status === "protected" || status === "fail-closed" ? status : null;
+}
+
+export function scheduleStatusNotification(
   status: TrayStatus,
+  failClosedSettleMs: number = FAIL_CLOSED_STATUS_NOTIFICATION_SETTLE_MS,
+): ScheduledStatusNotification | null {
+  const target = statusNotificationTarget(status);
+  if (target === null) return null;
+  return { status: target, delayMs: target === "fail-closed" ? failClosedSettleMs : 0 };
+}
+
+export async function shouldSendStatusNotification(
+  status: StatusNotificationTarget,
   options: { lockDir?: string; nowMs?: number; stateFile?: string } = {},
 ): Promise<boolean> {
   const stateFile = options.stateFile ?? STATUS_NOTIFICATION_STATE_FILE;
@@ -87,7 +91,7 @@ async function tryCreateStatusNotificationLock(lockDir: string): Promise<boolean
     .catch(() => false);
 }
 
-async function readPreviousStatusNotification(stateFile: string): Promise<TrayStatus | null> {
+async function readPreviousStatusNotification(stateFile: string): Promise<StatusNotificationTarget | null> {
   const text = await Bun.file(stateFile)
     .text()
     .catch(() => null);
@@ -102,9 +106,9 @@ async function readPreviousStatusNotification(stateFile: string): Promise<TraySt
 
   if (typeof data !== "object" || data === null) return null;
   if (!("status" in data)) return null;
-  return isTrayStatus(data.status) ? data.status : null;
+  return isStatusNotificationTarget(data.status) ? data.status : null;
 }
 
-function isTrayStatus(value: unknown): value is TrayStatus {
-  return value === "protected" || value === "starting" || value === "fail-closed" || value === "unknown";
+function isStatusNotificationTarget(value: unknown): value is StatusNotificationTarget {
+  return value === "protected" || value === "fail-closed";
 }

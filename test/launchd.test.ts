@@ -159,6 +159,9 @@ describe("installDaemon", () => {
         if (args[0] === "bootstrap") {
           return { stdout: "", stderr: "Bootstrap failed: 5: Input/output error\n", exitCode: 1 };
         }
+        if (args[0] === "print") {
+          return { stdout: "", stderr: "not loaded\n", exitCode: 1 };
+        }
         return { stdout: "", stderr: "", exitCode: 0 };
       };
 
@@ -169,6 +172,33 @@ describe("installDaemon", () => {
       expect(sleeps.slice(0, 4)).toEqual([500, 1000, 1500, 1500]);
       expect(Math.max(...sleeps)).toBe(1500);
       expect(sleeps.length).toBe(BOOTSTRAP_TEARDOWN_RETRY_ATTEMPTS - 1);
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  test("force-restarts a loaded job after exhausting teardown retries", async () => {
+    const dir = await mkdtemp(path.join(os.tmpdir(), "vpnctl-test-"));
+    const plistPath = path.join(dir, "com.vpnctl.tunnel.plist");
+    const calls: string[][] = [];
+
+    try {
+      const exec: Exec = async (_cmd, args): Promise<ExecResult> => {
+        calls.push(args);
+        if (args[0] === "bootstrap") {
+          return { stdout: "", stderr: "Bootstrap failed: 5: Input/output error\n", exitCode: 1 };
+        }
+        if (args[0] === "print") {
+          return { stdout: "state = running\n", stderr: "", exitCode: 0 };
+        }
+        return { stdout: "", stderr: "", exitCode: 0 };
+      };
+
+      await installDaemon(exec, "com.vpnctl.tunnel", plistPath, "PLIST-CONTENT", "system", noopSleep);
+
+      expect(calls.filter((args) => args[0] === "bootstrap")).toHaveLength(BOOTSTRAP_TEARDOWN_RETRY_ATTEMPTS);
+      expect(calls.at(-2)).toEqual(["print", "system/com.vpnctl.tunnel"]);
+      expect(calls.at(-1)).toEqual(["kickstart", "-k", "system/com.vpnctl.tunnel"]);
     } finally {
       await rm(dir, { recursive: true, force: true });
     }
@@ -191,6 +221,9 @@ describe("installDaemon", () => {
         if (args[0] === "bootstrap") {
           bootstrapCalls += 1;
           return { stdout: "", stderr: "Bootstrap failed: 5: Input/output error\n", exitCode: 1 };
+        }
+        if (args[0] === "print") {
+          return { stdout: "", stderr: "not loaded\n", exitCode: 1 };
         }
         return { stdout: "", stderr: "", exitCode: 0 };
       };

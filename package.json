@@ -1,6 +1,6 @@
 {
   "name": "vpnctl",
-  "version": "0.2.3",
+  "version": "0.2.4",
   "description": "Fail-closed macOS VPN killswitch (pf firewall + DNS sinkhole + sing-box VLESS/Reality) for protected domains, driven by a console CLI.",
   "type": "module",
   "license": "MIT",
@@ -19,11 +19,8 @@
     "lint:md": "markdownlint-cli2 \"**/*.md\"",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "build": "bun build --compile bin/vpnctl.ts --outfile dist/vpnctl",
-    "build:monitor": "bun build --compile src/daemon/monitor.ts --outfile dist/vpnctl-monitor",
-    "build:tunnel": "bun build --compile src/daemon/tunnel.ts --outfile dist/vpnctl-tunnel",
-    "build:tray": "bun build --compile src/daemon/tray.ts --outfile dist/vpnctl-tray",
-    "build:daemons": "bun run build:monitor && bun run build:tunnel && bun run build:tray"
+    "build": "bun build --compile bin/vpnctl.ts --outfile dist/vpnctl && ./scripts/link-dist-aliases.sh",
+    "build:daemons": "./scripts/link-dist-aliases.sh"
   },
   "dependencies": {
     "@clack/prompts": "^0.9.1",

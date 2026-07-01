@@ -15,6 +15,7 @@ import { resolveReconcileIntervalMs } from "./reconcile-interval";
 
 const REFRESH_TICK_MS = 10 * 60 * 1000;
 const DESIRED_POLL_MS = 1_000;
+export const TUNNEL_STARTING_GRACE_MS = 30_000;
 
 function log(message: string): void {
   const timestamp = new Date().toISOString().replace("T", " ").slice(0, 19);
@@ -71,9 +72,13 @@ export async function tickRefresh(exec: Exec, config: Config): Promise<void> {
   log(`refresh OK: v4=${v4.length} v6=${v6.length}`);
 }
 
-async function main(): Promise<void> {
+export function resolveTunnelStarting(tunnelUp: boolean, singBoxRunning: boolean, tunnelStartingUntilMs: number, nowMs: number): boolean {
+  return !tunnelUp && (singBoxRunning || nowMs < tunnelStartingUntilMs);
+}
+
+export async function runMonitorDaemon(argv: string[] = process.argv.slice(2)): Promise<void> {
   const exec = realExec;
-  const { configPath, singboxConfigPath, desiredTunnelPath } = parseArgs(process.argv.slice(2));
+  const { configPath, singboxConfigPath, desiredTunnelPath } = parseArgs(argv);
   const config = await loadConfig(configPath);
 
   let stopping = false;
@@ -91,6 +96,7 @@ async function main(): Promise<void> {
   await rm(YIELD_MODE_FILE, { force: true });
 
   let tunnelState: TunnelState | null = null;
+  let tunnelStartingUntilMs = 0;
 
   // Enforce the tray/CLI's desired tunnel state before reconciling, in its own
   // try: a failure here must never skip the sinkhole/anchor reconcile that keeps
@@ -104,8 +110,15 @@ async function main(): Promise<void> {
       // to fail-closed at once rather than after the slower sinkhole reconcile.
       // Starting is not — the tunnel still has to connect — so let the reconcile
       // confirm "up" before the tray goes green.
-      if (action === "stop") await writeStateFile(false, null);
-      if (action === "start") await writeStateFile(false, null, Date.now(), true);
+      if (action === "stop") {
+        tunnelStartingUntilMs = 0;
+        await writeStateFile(false, null);
+      }
+      if (action === "start") {
+        const nowMs = Date.now();
+        tunnelStartingUntilMs = nowMs + TUNNEL_STARTING_GRACE_MS;
+        await writeStateFile(false, null, nowMs, true);
+      }
     } catch (error) {
       log(`ERROR desired-tunnel enforce: ${(error as Error).message}`);
     }
@@ -115,8 +128,11 @@ async function main(): Promise<void> {
     await enforceTunnel();
     try {
       tunnelState = await tickSinkholeAndAnchor(exec, config, singboxConfigPath, tunnelState);
-      const tunnelStarting = !tunnelState.tunnelUp && (await isSingBoxRunning(exec, TUNNEL_PID_FILE).catch(() => false));
-      await writeStateFile(tunnelState.tunnelUp, tunnelState.trustedIface, Date.now(), tunnelStarting);
+      if (tunnelState.tunnelUp) tunnelStartingUntilMs = 0;
+      const nowMs = Date.now();
+      const singBoxRunning = await isSingBoxRunning(exec, TUNNEL_PID_FILE).catch(() => false);
+      const tunnelStarting = resolveTunnelStarting(tunnelState.tunnelUp, singBoxRunning, tunnelStartingUntilMs, nowMs);
+      await writeStateFile(tunnelState.tunnelUp, tunnelState.trustedIface, nowMs, tunnelStarting);
     } catch (error) {
       log(`ERROR sinkhole/anchor tick: ${(error as Error).message}`);
     }
@@ -197,5 +213,5 @@ async function main(): Promise<void> {
 }
 
 if (import.meta.main) {
-  await main();
+  await runMonitorDaemon();
 }

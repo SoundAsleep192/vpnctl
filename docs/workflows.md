@@ -16,7 +16,6 @@ use explicit subcommands.
 ```sh
 brew install sing-box
 bun run build
-bun run build:daemons
 vpnctl setup
 sudo vpnctl install
 ```
@@ -32,8 +31,11 @@ Use the local reinstall script when iterating on compiled binaries:
 ./scripts/reinstall-local.sh
 ```
 
-It builds CLI and daemon binaries, copies them into the existing install directory,
-copies tray helper assets, and redeploys daemons through `sudo vpnctl install`.
+It builds and signs the compiled CLI, recreates daemon aliases, copies release assets
+into the existing install directory, and redeploys daemons through `sudo vpnctl
+install`.
+Run it as your normal user, not with `sudo`; the script asks for privilege only when
+needed.
 
 To only replace binaries and skip daemon redeploy:
 
@@ -43,6 +45,20 @@ VPNCTL_REINSTALL_SKIP_DAEMONS=1 ./scripts/reinstall-local.sh
 
 If the install directory is root-owned, the script falls back to `sudo` for removal
 and copy operations.
+
+## Offline local test
+
+Use this when you want a release-shaped local build without downloading anything:
+
+```sh
+./scripts/offline-local-test.sh
+```
+
+It runs focused gates, builds/signs the compiled binary, smoke-tests `dist/`,
+reinstalls the local build, and prints the manual dashboard/tray checklist. Set
+`VPNCTL_OFFLINE_SKIP_TESTS=1` when you only want the reinstall path. If an earlier
+sudo run left root-owned build artifacts behind, remove them once with
+`sudo rm -rf dist/traybin`.
 
 ## Host protection setup
 

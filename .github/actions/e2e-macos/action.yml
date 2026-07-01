@@ -19,12 +19,14 @@ runs:
       shell: bash
       run: |
         bun run build
-        bun run build:daemons
     - name: Install built binaries onto PATH
       shell: bash
       run: |
         mkdir -p "$HOME/.local/bin"
-        cp dist/vpnctl dist/vpnctl-monitor dist/vpnctl-tunnel "$HOME/.local/bin/"
+        rm -f "$HOME/.local/bin/vpnctl" "$HOME/.local/bin/vpnctl-monitor" "$HOME/.local/bin/vpnctl-tunnel"
+        cp -p dist/vpnctl "$HOME/.local/bin/vpnctl"
+        ln "$HOME/.local/bin/vpnctl" "$HOME/.local/bin/vpnctl-monitor"
+        ln "$HOME/.local/bin/vpnctl" "$HOME/.local/bin/vpnctl-tunnel"
         chmod +x "$HOME/.local/bin/vpnctl" "$HOME/.local/bin/vpnctl-monitor" "$HOME/.local/bin/vpnctl-tunnel"
         echo "$HOME/.local/bin" >> "$GITHUB_PATH"
     - name: Install sing-box

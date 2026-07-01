@@ -76,13 +76,26 @@ if [ "$REQUIRE_LIVE_UPDATE" != "1" ] && ! github_reachable; then
   echo "       proved the EIO-5 regression network-free)."
 else
   # `vpnctl update` self-sudoes after its version check, so no sudo prefix here.
-  "$VPNCTL_BIN" update
-  assert "version bumped above $SYNTHETIC_OLD_VERSION" bash -c \
-    "[ \"\$('$VPNCTL_BIN' --version)\" != '$SYNTHETIC_OLD_VERSION' ]"
-  poll_assert "monitor daemon running after update" daemon_running "$LAUNCHD_LABEL_MONITOR"
-  poll_assert "tunnel daemon running after update" daemon_running "$LAUNCHD_LABEL_TUNNEL"
-  assert "pf enabled after update" pf_enabled
-  assert "anchor '$PF_ANCHOR_NAME' loaded after update" anchor_loaded
+  update_output="$("$VPNCTL_BIN" update 2>&1)"
+  update_status=$?
+  if [ "$update_status" -ne 0 ]; then
+    echo "$update_output"
+    if [ "$REQUIRE_LIVE_UPDATE" != "1" ] && echo "$update_output" | grep -Eq "failed to (check|download)"; then
+      echo "  SKIP live update — GitHub release delivery failed from this runner,"
+      echo "       and E2E_REQUIRE_LIVE_UPDATE != 1 (the redeploy path above already"
+      echo "       proved the EIO-5 regression network-free)."
+    else
+      assert "vpnctl update exits 0" bash -c "exit $update_status"
+    fi
+  else
+    echo "$update_output"
+    assert "version bumped above $SYNTHETIC_OLD_VERSION" bash -c \
+      "[ \"\$('$VPNCTL_BIN' --version)\" != '$SYNTHETIC_OLD_VERSION' ]"
+    poll_assert "monitor daemon running after update" daemon_running "$LAUNCHD_LABEL_MONITOR"
+    poll_assert "tunnel daemon running after update" daemon_running "$LAUNCHD_LABEL_TUNNEL"
+    assert "pf enabled after update" pf_enabled
+    assert "anchor '$PF_ANCHOR_NAME' loaded after update" anchor_loaded
+  fi
 fi
 
 assert_summary "update-race E2E"

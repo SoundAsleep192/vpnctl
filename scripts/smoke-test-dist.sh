@@ -13,7 +13,7 @@ SAMPLE_VLESS_URI="vless://00000000-0000-4000-8000-000000000000@vpn.example.com:4
 SMOKE_TEST_HOME=$(mktemp -d)
 trap 'rm -rf "$SMOKE_TEST_HOME"' EXIT
 
-HOME="$SMOKE_TEST_HOME" ./dist/vpnctl setup --uri "$SAMPLE_VLESS_URI"
+HOME="$SMOKE_TEST_HOME" ./dist/vpnctl setup --uri "$SAMPLE_VLESS_URI" >/dev/null
 
 test -s "$SMOKE_TEST_HOME/.config/vpnctl/config.json"
 test -s "$SMOKE_TEST_HOME/.config/vpnctl/sing-box.json"
@@ -29,6 +29,7 @@ TRAY_OUT=$(mktemp)
 TRAY_PID=$!
 sleep 3
 kill "$TRAY_PID" 2>/dev/null || true
+wait "$TRAY_PID" 2>/dev/null || true
 pkill -f tray_darwin_release 2>/dev/null || true
 if grep -qE "is not a constructor|Cannot find package" "$TRAY_OUT"; then
   echo "smoke-test-dist: tray failed to start (compiled interop regression):"

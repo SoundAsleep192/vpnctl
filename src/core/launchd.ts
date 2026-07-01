@@ -93,6 +93,7 @@ export async function installDaemon(
   // after the job is booted out and the plist removed — clear it first.
   await enableDaemon(exec, label, domain);
 
+  let reportedLaunchdWait = false;
   let result = await exec("/bin/launchctl", ["bootstrap", domain, plistPath]);
   for (
     let attempt = 1;
@@ -104,13 +105,19 @@ export async function installDaemon(
     // throughout, then `bootstrap` for the same label collides with the
     // in-flight teardown and fails with "5: Input/output error". Retry until
     // teardown completes.
-    console.warn(
-      `launchd still tearing down ${label}; retrying bootstrap (attempt ${attempt + 1}/${BOOTSTRAP_TEARDOWN_RETRY_ATTEMPTS})...`,
-    );
+    if (!reportedLaunchdWait) {
+      console.warn(`Waiting for launchd to finish restarting ${label}...`);
+      reportedLaunchdWait = true;
+    }
     await sleep(bootstrapTeardownRetryDelayMs(attempt));
     result = await exec("/bin/launchctl", ["bootstrap", domain, plistPath]);
   }
   if (result.exitCode !== 0) {
+    if (BOOTSTRAP_TEARDOWN_ERROR.test(result.stderr) && (await isLoaded(exec, label, domain))) {
+      await kickstart(exec, label, domain, true);
+      console.warn(`${label} stayed loaded during restart; refreshed existing job.`);
+      return;
+    }
     throw new Error(`failed to bootstrap ${label}: ${result.stderr.trim()}`);
   }
 }
