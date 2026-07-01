@@ -83,7 +83,7 @@ assert "sinkhole still present after refresh" sinkhole_present
 assert_failclosed_invariant
 
 echo
-echo "-- uninstall (--purge) --"
+echo "-- uninstall --"
 vpnctl_uninstall
 poll_assert "monitor daemon gone" daemon_gone "$LAUNCHD_LABEL_MONITOR"
 poll_assert "tunnel daemon gone" daemon_gone "$LAUNCHD_LABEL_TUNNEL"

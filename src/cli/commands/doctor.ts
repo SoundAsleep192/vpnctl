@@ -67,7 +67,7 @@ export async function checkGeneratedSingBoxConfig(singboxConfigPath: string = GE
   return {
     name: "sing-box.json",
     status: exists ? "ok" : "warn",
-    detail: exists ? singboxConfigPath : `${singboxConfigPath} not found — run \`vpnctl setup\` or \`vpnctl install\``,
+    detail: exists ? singboxConfigPath : `${singboxConfigPath} not found — run the vpnctl installer again`,
   };
 }
 

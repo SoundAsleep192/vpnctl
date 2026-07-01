@@ -21,7 +21,6 @@ export const CACHE_V4_FILE = path.join(ROOT_CACHE_DIR, "last-good-v4.txt");
 export const CACHE_V6_FILE = path.join(ROOT_CACHE_DIR, "last-good-v6.txt");
 export const UPDATE_CHECK_CACHE_FILE = path.join(ROOT_CACHE_DIR, "update-check.json");
 export const TUNNEL_PID_FILE = path.join(ROOT_STATE_DIR, "tunnel.pid");
-export const YIELD_MODE_FILE = path.join(ROOT_STATE_DIR, "yield-mode");
 
 export const LOG_DIR = "/Library/Logs/vpnctl";
 export const MONITOR_LOG_FILE = path.join(LOG_DIR, "monitor.log");

@@ -41,7 +41,7 @@ cleanup() {
     for binary in "${RELEASE_BINARIES[@]}"; do
       [ -f "$BACKUP_DIR/$binary" ] && cp "$BACKUP_DIR/$binary" "$INSTALL_DIR/$binary"
     done
-    echo "Restored. To reload the daemons from them: sudo vpnctl install"
+    echo "Restored. To reload the daemons from them: sudo vpnctl __install"
   fi
   [ -n "$BACKUP_DIR" ] && rm -rf "$BACKUP_DIR"
 }

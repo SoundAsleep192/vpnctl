@@ -17,6 +17,7 @@ const ITERM_APPLICATION_ID = "com.googlecode.iterm2";
 const ITERM_TERM_PROGRAM = "iTerm.app";
 const APPLE_TERMINAL_TERM_PROGRAM = "Apple_Terminal";
 const NEW_TERMINAL_MESSAGE = "Opened in a new terminal window.";
+const CONFIG_MISSING_MESSAGE = "Config missing. Run the installer again.";
 const SHELL_SAFE_VALUE = /^[A-Za-z0-9_./:@%+=,-]+$/;
 const DOMAIN_VALUE = /^[A-Za-z0-9.-]+$/;
 
@@ -31,7 +32,7 @@ export function resolveEditorCommand(editor: string, filePath: string): EditorCo
 
 export async function saveRoutingMode(mode: RoutingMode): Promise<string> {
   const config = await loadConfig().catch(() => null);
-  if (config === null) return "Config missing. Run setup first.";
+  if (config === null) return CONFIG_MISSING_MESSAGE;
   const updated: Config = { ...config, routing: { mode } };
   await saveConfig(updated);
   await regenerateSingBoxConfig();
@@ -40,7 +41,7 @@ export async function saveRoutingMode(mode: RoutingMode): Promise<string> {
 
 export async function saveUiLanguage(language: UiLanguage): Promise<string> {
   const config = await loadConfig().catch(() => null);
-  if (config === null) return "Config missing. Run setup first.";
+  if (config === null) return CONFIG_MISSING_MESSAGE;
   const updated: Config = { ...config, ui: { language } };
   await saveConfig(updated);
   return `Language saved: ${formatLanguage(language)}.`;
@@ -48,7 +49,7 @@ export async function saveUiLanguage(language: UiLanguage): Promise<string> {
 
 export async function saveConnectionUri(uri: string): Promise<string> {
   const config = await loadConfig().catch(() => null);
-  if (config === null) return "Config missing. Run setup first.";
+  if (config === null) return CONFIG_MISSING_MESSAGE;
   const outbound = parseVlessUri(uri.trim());
   const updated: Config = { ...config, outbound };
   await saveConfig(updated);
@@ -58,7 +59,7 @@ export async function saveConnectionUri(uri: string): Promise<string> {
 
 export async function addProtectedDomain(domain: string): Promise<string> {
   const config = await loadConfig().catch(() => null);
-  if (config === null) return "Config missing. Run setup first.";
+  if (config === null) return CONFIG_MISSING_MESSAGE;
   const normalizedDomain = normalizeDomainInput(domain);
   if (config.domains.includes(normalizedDomain)) return `${normalizedDomain} is already protected.`;
   const updated: Config = { ...config, domains: [...config.domains, normalizedDomain] };
@@ -69,7 +70,7 @@ export async function addProtectedDomain(domain: string): Promise<string> {
 
 export async function removeProtectedDomain(domain: string): Promise<string> {
   const config = await loadConfig().catch(() => null);
-  if (config === null) return "Config missing. Run setup first.";
+  if (config === null) return CONFIG_MISSING_MESSAGE;
   const normalizedDomain = normalizeDomainInput(domain);
   if (!config.domains.includes(normalizedDomain)) return `${normalizedDomain} is not protected.`;
   const updated: Config = { ...config, domains: config.domains.filter((existingDomain) => existingDomain !== normalizedDomain) };
@@ -80,7 +81,7 @@ export async function removeProtectedDomain(domain: string): Promise<string> {
 
 export async function saveProtectedDomains(domains: string[]): Promise<string> {
   const config = await loadConfig().catch(() => null);
-  if (config === null) return "Config missing. Run setup first.";
+  if (config === null) return CONFIG_MISSING_MESSAGE;
   const normalizedDomains = uniqueValues(domains.map(normalizeDomainInput));
   if (normalizedDomains.length === 0) throw new Error("protected domains list cannot be empty");
   const updated: Config = { ...config, domains: normalizedDomains };
@@ -91,7 +92,7 @@ export async function saveProtectedDomains(domains: string[]): Promise<string> {
 
 export async function addDnsServer(server: string): Promise<string> {
   const config = await loadConfig().catch(() => null);
-  if (config === null) return "Config missing. Run setup first.";
+  if (config === null) return CONFIG_MISSING_MESSAGE;
   const normalizedServer = normalizeDnsServerInput(server);
   if (config.dns.servers.includes(normalizedServer)) return `${normalizedServer} is already configured.`;
   const updated: Config = { ...config, dns: { servers: [...config.dns.servers, normalizedServer] } };
@@ -102,7 +103,7 @@ export async function addDnsServer(server: string): Promise<string> {
 
 export async function removeDnsServer(server: string): Promise<string> {
   const config = await loadConfig().catch(() => null);
-  if (config === null) return "Config missing. Run setup first.";
+  if (config === null) return CONFIG_MISSING_MESSAGE;
   const normalizedServer = normalizeDnsServerInput(server);
   const nextServers = config.dns.servers.filter((existingServer) => existingServer !== normalizedServer);
   if (nextServers.length === config.dns.servers.length) return `${normalizedServer} is not configured.`;
@@ -111,7 +112,7 @@ export async function removeDnsServer(server: string): Promise<string> {
 
 export async function saveDnsServers(servers: string[]): Promise<string> {
   const config = await loadConfig().catch(() => null);
-  if (config === null) return "Config missing. Run setup first.";
+  if (config === null) return CONFIG_MISSING_MESSAGE;
   const normalizedServers = uniqueValues(servers.map(normalizeDnsServerInput));
   if (normalizedServers.length === 0) throw new Error("at least one DNS server is required");
   const updated: Config = { ...config, dns: { servers: normalizedServers } };

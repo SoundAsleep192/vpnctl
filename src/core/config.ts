@@ -126,7 +126,7 @@ export function detectSystemLanguage(env?: LanguageEnvironment): UiLanguage {
 export async function loadConfig(filePath: string = CONFIG_FILE): Promise<Config> {
   const file = Bun.file(filePath);
   if (!(await file.exists())) {
-    throw new Error(`config file not found: ${filePath}\nrun \`vpnctl setup\` to create it`);
+    throw new Error(`config file not found: ${filePath}\nrun the vpnctl installer to create it`);
   }
 
   let raw: unknown;

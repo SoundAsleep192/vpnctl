@@ -1,11 +1,9 @@
-import { rm } from "node:fs/promises";
 import { loadConfig } from "../../core/config";
 import { writeDesiredTunnel } from "../../core/desired-tunnel";
 import { reconcileUntilTunnelState } from "../../core/enforcement";
 import type { Exec } from "../../core/exec";
 import { realExec } from "../../core/exec";
 import { formatKillswitchNotice } from "../../core/killswitch-notice";
-import { YIELD_MODE_FILE } from "../../core/paths";
 import { writeStateFile } from "../../core/state-file";
 import { stopTunnel } from "../../core/tunnel-control";
 import { requireRoot } from "../root";
@@ -19,8 +17,6 @@ export async function runDown(options: DownOptions = {}): Promise<void> {
 
   const exec = options.exec ?? realExec;
   const config = await loadConfig();
-
-  await rm(YIELD_MODE_FILE, { force: true });
 
   console.log(await stopTunnel(exec));
 

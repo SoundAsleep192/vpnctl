@@ -184,7 +184,7 @@ export async function runUpdate(options: UpdateOptions = {}): Promise<void> {
   } catch (error) {
     throw new Error(
       `binaries updated to v${latest.version} in ${installDir}, but redeploying LaunchDaemons failed: ` +
-        `${(error as Error).message} — rerun \`sudo vpnctl install\` to finish`,
+        `${(error as Error).message} — rerun \`sudo vpnctl __install\` to finish`,
       { cause: error },
     );
   }

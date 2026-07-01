@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import type { Exec, ExecResult } from "../src/core/exec";
-import { formatProbeResults, probeDomain, runProbes } from "../src/cli/commands/check";
+import { formatProbeResults, formatRouteProof, probeDomain, runProbes } from "../src/cli/commands/check";
 
 function makeExec(responses: Record<string, ExecResult>): Exec {
   return async (cmd, args) => {
@@ -108,5 +108,15 @@ describe("formatProbeResults", () => {
     expect(output).toContain("OK   a.example  HTTP 200");
     expect(output).toContain("BAD  b.example");
     expect(output).toContain("1 probe(s) failed: b.example");
+  });
+});
+
+describe("formatRouteProof", () => {
+  test("renders a direct route proof for full tunnel mode", () => {
+    expect(formatRouteProof("utun20", "full")).toBe("route OK -> utun20");
+  });
+
+  test("explains why generic IP checks are direct in split mode", () => {
+    expect(formatRouteProof("utun20", "split")).toContain("generic IP-check sites stay direct");
   });
 });

@@ -8,17 +8,15 @@ export function formatTrafficScope(mode: RoutingMode | null): string {
   return "not configured";
 }
 
-export function formatAiDomainsState(configPresent: boolean, trayStatus: TrayStatus, yieldMode: boolean): AiDomainsState {
+export function formatAiDomainsState(configPresent: boolean, trayStatus: TrayStatus): AiDomainsState {
   if (!configPresent) return "not configured";
-  if (yieldMode) return "not enforced";
   if (trayStatus === "protected") return "through VPN";
   if (trayStatus === "starting") return "blocked";
   if (trayStatus === "fail-closed") return "blocked";
   return "configured";
 }
 
-export function formatLeakGuard(state: VpnState | null, trayStatus: TrayStatus, yieldMode: boolean): string {
-  if (yieldMode) return "not enforcing";
+export function formatLeakGuard(state: VpnState | null, trayStatus: TrayStatus): string {
   if (trayStatus === "protected") return "standing by";
   if (trayStatus === "starting") return "blocking while tunnel starts";
   if (state?.sinkholeActive === true) return "blocking protected domains";
@@ -36,19 +34,12 @@ export function formatTunnelLabel(status: TrayStatus): string {
 export function stateColor(state: AiDomainsState): StatusColor {
   if (state === "through VPN") return "green";
   if (state === "configured") return "green";
-  if (state === "blocked" || state === "not enforced") return "yellow";
+  if (state === "blocked") return "yellow";
   return "gray";
 }
 
 export function valueToAiDomainsState(value: string): AiDomainsState {
-  if (
-    value === "through VPN" ||
-    value === "blocked" ||
-    value === "not enforced" ||
-    value === "configured" ||
-    value === "unknown" ||
-    value === "not configured"
-  ) {
+  if (value === "through VPN" || value === "blocked" || value === "configured" || value === "unknown" || value === "not configured") {
     return value;
   }
   return "unknown";

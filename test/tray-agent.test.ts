@@ -1,7 +1,11 @@
 import { describe, expect, test } from "bun:test";
+import { Buffer } from "node:buffer";
 import { buildTrayPlist, isRosettaAvailable, resolveTrayAgentDomain } from "../src/cli/commands/tray";
+import { buildMenu } from "../src/daemon/tray";
 import type { Exec } from "../src/core/exec";
 import { LAUNCHD_LABEL_TRAY, TRAY_LOG_FILE } from "../src/core/paths";
+
+const PNG_SIGNATURE = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a];
 
 function execReturning(exitCode: number): Exec {
   return async () => ({ stdout: "", stderr: "", exitCode });
@@ -20,6 +24,15 @@ describe("buildTrayPlist", () => {
       stdoutPath: TRAY_LOG_FILE,
       stderrPath: TRAY_LOG_FILE,
     });
+  });
+});
+
+describe("buildMenu", () => {
+  test("uses embedded PNG icon assets for every tray status", () => {
+    for (const status of ["protected", "starting", "fail-closed", "unknown"] as const) {
+      const image = Buffer.from(buildMenu(status).icon, "base64");
+      expect([...image.subarray(0, PNG_SIGNATURE.length)]).toEqual(PNG_SIGNATURE);
+    }
   });
 });
 

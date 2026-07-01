@@ -14,13 +14,10 @@ use explicit subcommands.
 ## First local install
 
 ```sh
-brew install sing-box
-bun run build
-vpnctl setup
-sudo vpnctl install
+curl -fsSL https://raw.githubusercontent.com/SoundAsleep192/vpnctl/master/scripts/install.sh | bash
 ```
 
-`vpnctl setup` requires a VLESS+Reality `vless://...` share link. vpnctl does not
+The installer requires a VLESS+Reality `vless://...` share link. vpnctl does not
 provide a VPN server.
 
 ## Fast local reinstall
@@ -32,8 +29,8 @@ Use the local reinstall script when iterating on compiled binaries:
 ```
 
 It builds and signs the compiled CLI, recreates daemon aliases, copies release assets
-into the existing install directory, and redeploys daemons through `sudo vpnctl
-install`.
+into the existing install directory, and redeploys daemons through vpnctl's internal
+installer entrypoint.
 Run it as your normal user, not with `sudo`; the script asks for privilege only when
 needed.
 
@@ -65,17 +62,19 @@ sudo run left root-owned build artifacts behind, remove them once with
 Primary flow:
 
 ```sh
-vpnctl setup
-sudo vpnctl install
+curl -fsSL https://raw.githubusercontent.com/SoundAsleep192/vpnctl/master/scripts/install.sh | bash
 sudo vpnctl status --ip
 sudo vpnctl doctor
 ```
 
-Routing mode can be set during setup or install:
+The installer downloads the current release, installs `sing-box` if missing, prepares
+Rosetta 2 on Apple Silicon for the tray helper, asks for the VLESS link, optionally
+installs Claude/Codex preflight wrappers, and installs daemons.
+
+Routing mode can be set during install:
 
 ```sh
-vpnctl setup --routing-mode split
-sudo vpnctl install --routing-mode full
+VPNCTL_ROUTING_MODE=split curl -fsSL https://raw.githubusercontent.com/SoundAsleep192/vpnctl/master/scripts/install.sh | bash
 ```
 
 `full` routes all non-private traffic through the proxy. `split` routes only protected
@@ -95,14 +94,10 @@ refresh hint instead of prompting for `sudo` inside a plain config-edit command.
 
 ## Tray workflow
 
-```sh
-vpnctl tray install
-vpnctl tray uninstall
-```
-
-The tray is per-user. It reads monitor state without root and writes desired tunnel
-state when the user toggles protection. On Apple Silicon, the bundled systray helper
-requires Rosetta 2.
+Tray is part of the app install. The installer adds it, and `vpnctl uninstall`
+removes it. It reads monitor state without root and writes desired tunnel state when
+the user toggles protection. On Apple Silicon, the bundled systray helper requires
+Rosetta 2; the release installer installs it when needed.
 
 ## Sandbox workflow
 

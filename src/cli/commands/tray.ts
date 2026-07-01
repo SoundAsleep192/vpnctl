@@ -50,7 +50,7 @@ export async function runTrayInstall(options: TrayOptions = {}): Promise<void> {
   if (!(await isRosettaAvailable(exec))) {
     console.warn(
       "Warning: the menu-bar helper is x86_64-only and needs Rosetta 2 on Apple Silicon.\n" +
-        "Install it, then reinstall the tray:\n  softwareupdate --install-rosetta --agree-to-license",
+        "Install it, then rerun the vpnctl installer:\n  softwareupdate --install-rosetta --agree-to-license",
     );
   }
 

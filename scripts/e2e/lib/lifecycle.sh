@@ -18,7 +18,7 @@ VPNCTL_BIN="${VPNCTL_BIN:-vpnctl}"
 # per RFC 5737) is guaranteed unroutable — the tunnel will never connect.
 FAKE_VLESS_URI="${FAKE_VLESS_URI:-vless://00000000-0000-0000-0000-000000000000@192.0.2.1:443?encryption=none&security=reality&sni=example.com&fp=chrome&pbk=AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA&sid=0123abcd&type=tcp#vpnctl-e2e}"
 
-# sing-box is a hard dependency of `vpnctl install`; fail fast with a clear
+# sing-box is a hard dependency of vpnctl daemon install; fail fast with a clear
 # message if it is missing rather than letting install throw mid-run.
 require_sing_box() {
   if [ -x /opt/homebrew/bin/sing-box ] || [ -x /usr/local/bin/sing-box ]; then
@@ -29,11 +29,11 @@ require_sing_box() {
 }
 
 vpnctl_setup() {
-  "$VPNCTL_BIN" setup --uri "$FAKE_VLESS_URI"
+  "$VPNCTL_BIN" __setup --uri "$FAKE_VLESS_URI"
 }
 
 vpnctl_install() {
-  sudo "$VPNCTL_BIN" install
+  sudo "$VPNCTL_BIN" __install
 }
 
 vpnctl_status() {
@@ -57,7 +57,7 @@ vpnctl_refresh() {
 }
 
 vpnctl_uninstall() {
-  sudo "$VPNCTL_BIN" uninstall --purge
+  sudo "$VPNCTL_BIN" uninstall
 }
 
 # --- synthetic-old build (update-race regression fixture) ---------------------

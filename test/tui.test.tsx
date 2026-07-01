@@ -73,15 +73,14 @@ describe("tui helpers", () => {
   });
 
   test("formats protected domains state as a user outcome", () => {
-    expect(formatAiDomainsState(true, "protected", false)).toBe("through VPN");
-    expect(formatAiDomainsState(true, "starting", false)).toBe("blocked");
-    expect(formatAiDomainsState(true, "fail-closed", false)).toBe("blocked");
-    expect(formatAiDomainsState(true, "protected", true)).toBe("not enforced");
-    expect(formatAiDomainsState(false, "protected", false)).toBe("not configured");
+    expect(formatAiDomainsState(true, "protected")).toBe("through VPN");
+    expect(formatAiDomainsState(true, "starting")).toBe("blocked");
+    expect(formatAiDomainsState(true, "fail-closed")).toBe("blocked");
+    expect(formatAiDomainsState(false, "protected")).toBe("not configured");
   });
 
   test("shows configured protected domains when monitor state is unknown", () => {
-    expect(formatAiDomainsState(true, "unknown", false)).toBe("configured");
+    expect(formatAiDomainsState(true, "unknown")).toBe("configured");
   });
 
   test("shows leak guard standing by as a normal state", () => {
@@ -89,14 +88,12 @@ describe("tui helpers", () => {
       formatLeakGuard(
         { tunnelUp: true, trustedIface: "utun20", sinkholeActive: false, tunnelStarting: false, timestamp: Date.now() },
         "protected",
-        false,
       ),
     ).toBe("standing by");
     expect(
       formatLeakGuard(
         { tunnelUp: false, trustedIface: null, sinkholeActive: true, tunnelStarting: true, timestamp: Date.now() },
         "starting",
-        false,
       ),
     ).toBe("blocking while tunnel starts");
   });
@@ -133,6 +130,8 @@ describe("tui helpers", () => {
     expect(output).toContain("Traffic scope:");
     expect(output).toContain("protected");
     expect(output).toContain("domains only");
+    expect(output).toContain("Start tunnel");
+    expect(output).toContain("Stop tunnel");
     expect(output).toContain("↑/↓");
     expect(output).toContain("Move");
     expect(output).not.toContain("HOST");
@@ -423,6 +422,7 @@ describe("setup wizard", () => {
     uri: "vless://secret",
     routingMode: "split",
     domains: ["api.openai.com"],
+    preflightCommands: [],
     domainInput: "api.openai.com",
     message: null,
     installed: false,
@@ -433,15 +433,23 @@ describe("setup wizard", () => {
   test("renders setup wizard as a separate screen", () => {
     const output = renderToString(<SetupWizardApp initialState={setupState} />);
 
-    expect(output).toContain("vpnctl setup");
+    expect(output).toContain("vpnctl installer");
     expect(output).toContain("2 Traffic scope");
-    expect(output).toContain("4 Verify");
+    expect(output).toContain("5 Verify");
     expect(output).toContain("> Protected domains only");
     expect(output).toContain("Enter");
     expect(output).toContain("Select");
     expect(output).not.toContain("Write config");
-    expect(output).not.toContain("5 Verify");
     expect(output).not.toContain("Protected domains: through VPN");
+  });
+
+  test("asks which preflight wrappers to install", () => {
+    const output = renderToString(<SetupWizardApp initialState={{ ...setupState, step: "preflight" }} />);
+
+    expect(output).toContain("Preflight wrappers");
+    expect(output).toContain("No preflight wrappers");
+    expect(output).toContain("Claude");
+    expect(output).toContain("Codex");
   });
 
   test("renders pasted VLESS URI fully", () => {
@@ -473,6 +481,7 @@ describe("setup wizard", () => {
       { ...setupState, step: "connection", textField: "uri" },
       { ...setupState, step: "traffic-scope", textField: null },
       { ...setupState, step: "domains", textField: null },
+      { ...setupState, step: "preflight", textField: null },
       { ...setupState, step: "verify", textField: null },
     ];
 

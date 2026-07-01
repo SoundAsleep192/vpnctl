@@ -20,6 +20,29 @@ done
 cp "$FIXTURE_TARBALL" "$dest"
 `;
 
+const STUB_SUDO = `#!/bin/bash
+set -euo pipefail
+if [ "$1" = "-v" ]; then
+  exit 0
+fi
+while [ $# -gt 0 ]; do
+  case "$1" in
+    *=*)
+      export "$1"
+      shift
+      ;;
+    *)
+      exec "$@"
+      ;;
+  esac
+done
+`;
+
+const STUB_SING_BOX = `#!/bin/bash
+set -euo pipefail
+echo sing-box
+`;
+
 function stubUname(unameS: string, unameM: string): string {
   return `#!/bin/bash
 if [ "$1" = "-s" ]; then echo "${unameS}"; else echo "${unameM}"; fi
@@ -36,11 +59,21 @@ async function buildFixtureTarball(dir: string): Promise<string> {
   const sourceDir = path.join(dir, "fixture-src");
   await mkdir(sourceDir);
   const sourceBinary = path.join(sourceDir, "vpnctl");
-  await writeFile(sourceBinary, "#!/bin/sh\necho vpnctl\n");
+  await writeFile(
+    sourceBinary,
+    `#!/bin/bash
+set -euo pipefail
+printf '%s\\n' "$*" >> "$VPNCTL_STUB_LOG"
+`,
+  );
   await chmod(sourceBinary, 0o755);
   for (const name of RELEASE_BINARIES.slice(1)) {
     await link(sourceBinary, path.join(sourceDir, name));
   }
+
+  await mkdir(path.join(sourceDir, "traybin"));
+  await writeFile(path.join(sourceDir, "traybin", "tray_darwin_release"), "#!/bin/sh\necho tray\n");
+  await chmod(path.join(sourceDir, "traybin", "tray_darwin_release"), 0o755);
 
   const tarballPath = path.join(dir, "fixture.tar.gz");
   const result = Bun.spawnSync(["tar", "-czf", tarballPath, "-C", sourceDir, "."]);
@@ -59,6 +92,7 @@ interface RunInstallResult {
   stdout: string;
   stderr: string;
   installDir: string;
+  stubLog: string;
   cleanup: () => Promise<void>;
 }
 
@@ -70,12 +104,15 @@ async function runInstallScript(options: RunInstallOptions = {}): Promise<RunIns
   await mkdir(stubBinDir);
   await writeStubBinary(stubBinDir, "uname", stubUname(options.unameS ?? "Darwin", options.unameM ?? "arm64"));
   await writeStubBinary(stubBinDir, "curl", STUB_CURL);
+  await writeStubBinary(stubBinDir, "sudo", STUB_SUDO);
+  await writeStubBinary(stubBinDir, "sing-box", STUB_SING_BOX);
 
   const fixtureTarball = await buildFixtureTarball(scratchDir);
 
   const home = path.join(scratchDir, "home");
   await mkdir(home);
   const installDir = path.join(home, ".local", "bin");
+  const stubLog = path.join(scratchDir, "vpnctl-stub.log");
 
   const pathEntries = [stubBinDir, ...(options.installDirOnPath ? [installDir] : []), process.env.PATH ?? ""];
 
@@ -86,6 +123,10 @@ async function runInstallScript(options: RunInstallOptions = {}): Promise<RunIns
       HOME: home,
       VPNCTL_INSTALL_DIR: installDir,
       FIXTURE_TARBALL: fixtureTarball,
+      VPNCTL_SETUP_URI:
+        "vless://00000000-0000-0000-0000-000000000000@example.com:443?encryption=none&security=reality&sni=example.com&fp=chrome&pbk=abc&sid=def&type=tcp",
+      VPNCTL_STUB_LOG: stubLog,
+      VPNCTL_INSTALL_SKIP_ROSETTA: "1",
     },
   });
 
@@ -95,7 +136,18 @@ async function runInstallScript(options: RunInstallOptions = {}): Promise<RunIns
     stderr: result.stderr.toString(),
     installDir,
     cleanup,
+    stubLog,
   };
+}
+
+async function readStubLog(stubLog: string): Promise<string[]> {
+  const text = await Bun.file(stubLog)
+    .text()
+    .catch(() => "");
+  return text
+    .split("\n")
+    .map((line) => line.trim())
+    .filter((line) => line.length > 0);
 }
 
 describe("scripts/install.sh", () => {
@@ -112,6 +164,26 @@ describe("scripts/install.sh", () => {
         installedBinaryInodes.push(binaryStat.ino);
       }
       expect(new Set(installedBinaryInodes).size).toBe(1);
+
+      const trayHelperStat = await stat(path.join(installDir, "traybin", "tray_darwin_release"));
+      expect(trayHelperStat.mode & 0o111).not.toBe(0);
+    } finally {
+      await cleanup();
+    }
+  });
+
+  test("runs setup and install after extracting the release", async () => {
+    const { exitCode, stdout, stderr, stubLog, cleanup } = await runInstallScript({ unameM: "x86_64" });
+    try {
+      expect(exitCode).toBe(0);
+      const stubLogLines = await readStubLog(stubLog);
+      if (stubLogLines.length === 0) {
+        throw new Error(`stub log empty\nstdout:\n${stdout}\nstderr:\n${stderr}`);
+      }
+      expect(stubLogLines).toEqual([
+        "__setup --uri vless://00000000-0000-0000-0000-000000000000@example.com:443?encryption=none&security=reality&sni=example.com&fp=chrome&pbk=abc&sid=def&type=tcp",
+        "__install",
+      ]);
     } finally {
       await cleanup();
     }

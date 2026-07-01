@@ -14,7 +14,7 @@ export type TuiScreen =
   | "workspace"
   | "logs"
   | "log-view";
-export type AiDomainsState = "through VPN" | "blocked" | "not enforced" | "configured" | "unknown" | "not configured";
+export type AiDomainsState = "through VPN" | "blocked" | "configured" | "unknown" | "not configured";
 export type StatusColor = "green" | "yellow" | "gray";
 
 export interface TuiSnapshot {

@@ -24,7 +24,7 @@ export async function runSetup(options: SetupOptions = {}): Promise<void> {
   const interactive = options.uri === undefined;
 
   if ((await Bun.file(configPath).exists()) && !interactive) {
-    throw new Error(`${configPath} already exists — re-run \`vpnctl setup\` interactively to overwrite it`);
+    throw new Error(`${configPath} already exists — run \`vpnctl uninstall\` before reinstalling from scratch`);
   }
 
   let uri: string;
@@ -51,6 +51,6 @@ export async function runSetup(options: SetupOptions = {}): Promise<void> {
 
   await writeSetupConfig(config, configPath, singboxConfigPath);
 
-  const summary = `Wrote ${configPath} and ${singboxConfigPath}.\nNext: sudo vpnctl install`;
+  const summary = `Wrote ${configPath} and ${singboxConfigPath}.\nNext: installing protection daemons.`;
   console.log(summary);
 }

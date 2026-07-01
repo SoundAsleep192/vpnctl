@@ -1,11 +1,17 @@
 import React, { type FC, useState } from "react";
 import { Box, Text, render, useApp, useInput, useWindowSize } from "ink";
 import { DEFAULT_ROUTING_MODE, type Config, type RoutingMode } from "../../core/config";
+import {
+  DEFAULT_PREFLIGHT_WRAPPER_DIR,
+  installPreflightWrappers,
+  type PreflightWrapperCommand,
+  type PreflightWrapperInstallResult,
+} from "../../core/preflight-wrapper";
 import { DEFAULT_SETUP_VALUES, AI_DEV_TOOLS_DOMAINS, buildSetupConfig, parseListInput, writeSetupConfig } from "../setup-config";
 import { parseVlessUri } from "../../core/vless";
 import { buildVpnctlInvocation, restoreTerminalForExternalCommand } from "./actions";
 
-type SetupStep = "connection" | "traffic-scope" | "domains" | "verify";
+type SetupStep = "connection" | "traffic-scope" | "domains" | "preflight" | "verify";
 type TextField = "uri" | "domains";
 
 interface SetupWizardOptions {
@@ -21,6 +27,7 @@ export interface SetupWizardState {
   uri: string;
   routingMode: RoutingMode;
   domains: string[];
+  preflightCommands: PreflightWrapperCommand[];
   domainInput: string;
   message: string | null;
   installed: boolean;
@@ -32,7 +39,7 @@ interface SetupWizardAppProps {
   initialState: SetupWizardState;
 }
 
-type SetupWizardExitAction = { kind: "install"; state: SetupWizardState } | { kind: "finish" } | { kind: "quit" };
+type SetupWizardExitAction = { kind: "install"; state: SetupWizardState } | { kind: "finish"; state: SetupWizardState } | { kind: "quit" };
 
 interface SetupMenuItem {
   label: string;
@@ -44,7 +51,8 @@ const STEPS: Array<{ step: SetupStep; label: string }> = [
   { step: "connection", label: "1 Connection" },
   { step: "traffic-scope", label: "2 Traffic scope" },
   { step: "domains", label: "3 Domains" },
-  { step: "verify", label: "4 Verify" },
+  { step: "preflight", label: "4 Preflight" },
+  { step: "verify", label: "5 Verify" },
 ];
 
 const FALLBACK_APP_WIDTH = 96;
@@ -71,7 +79,7 @@ const KEY_HINT_LABEL_SUFFIX = "  ";
 
 export async function runTuiSetupWizard(options: SetupWizardOptions): Promise<void> {
   if (!process.stdin.isTTY || !process.stdout.isTTY) {
-    throw new Error("vpnctl setup needs an interactive terminal unless --uri is provided");
+    throw new Error("vpnctl installer needs an interactive terminal unless --uri is provided");
   }
 
   let state = initialSetupState(options.requestedRoutingMode);
@@ -94,7 +102,12 @@ export async function runTuiSetupWizard(options: SetupWizardOptions): Promise<vo
       restoreTerminalForExternalCommand();
     }
 
-    if (!isSetupWizardExitAction(result) || result.kind === "quit" || result.kind === "finish") return;
+    if (!isSetupWizardExitAction(result)) return;
+    if (result.kind === "quit") throw new Error("vpnctl installer cancelled.");
+    if (result.kind === "finish") {
+      if (!result.state.installed) throw new Error("vpnctl install failed.");
+      return;
+    }
 
     state = await writeConfigAndInstall(result.state, options.configPath, options.singboxConfigPath);
   }
@@ -117,7 +130,7 @@ export const SetupWizardApp: FC<SetupWizardAppProps> = ({ initialState }) => {
 
     if (state.textField !== null) {
       if (key.return) {
-        submitTextField(state, setState, exit);
+        submitTextField(state, setState);
         return;
       }
 
@@ -178,7 +191,7 @@ export const SetupWizardView: FC<{ state: SetupWizardState; menu: SetupMenuItem[
 
   return (
     <Box flexDirection="column" width={frameWidth}>
-      <Text bold>vpnctl setup</Text>
+      <Text bold>vpnctl installer</Text>
       <Box width={frameWidth} flexDirection="column" borderStyle="single" borderColor="gray">
         <Box
           paddingX={2}
@@ -190,7 +203,7 @@ export const SetupWizardView: FC<{ state: SetupWizardState; menu: SetupMenuItem[
           borderRight={false}
           borderColor="gray"
         >
-          <Text>vpnctl setup</Text>
+          <Text>vpnctl installer</Text>
           <Box height={1} />
           <Stepper step={state.step} compact={frameWidth < 78} />
         </Box>
@@ -220,6 +233,7 @@ function initialSetupState(requestedRoutingMode: RoutingMode | undefined): Setup
     uri: "",
     routingMode: requestedRoutingMode ?? DEFAULT_ROUTING_MODE,
     domains: AI_DEV_TOOLS_DOMAINS,
+    preflightCommands: [],
     domainInput: AI_DEV_TOOLS_DOMAINS.join(", "),
     message: null,
     installed: false,
@@ -260,7 +274,7 @@ function buildSetupMenu(
       {
         label: "Use default protected domains",
         detail: `${AI_DEV_TOOLS_DOMAINS.length} domains`,
-        select: () => options.exit({ kind: "install", state: nextState }),
+        select: () => options.setState({ ...nextState, step: "preflight" }),
       },
       {
         label: "Edit domain list",
@@ -269,8 +283,29 @@ function buildSetupMenu(
     ];
   }
 
+  if (state.step === "preflight") {
+    return [
+      { label: "No preflight wrappers", detail: "default", select: () => options.exit({ kind: "install", state }) },
+      {
+        label: "Claude",
+        detail: "claude -> vpnctl exec",
+        select: () => options.exit({ kind: "install", state: { ...state, preflightCommands: ["claude"] } }),
+      },
+      {
+        label: "Codex",
+        detail: "codex -> vpnctl exec",
+        select: () => options.exit({ kind: "install", state: { ...state, preflightCommands: ["codex"] } }),
+      },
+      {
+        label: "Claude and Codex",
+        detail: "both wrappers",
+        select: () => options.exit({ kind: "install", state: { ...state, preflightCommands: ["claude", "codex"] } }),
+      },
+    ];
+  }
+
   if (state.step === "verify") {
-    return [{ label: "Finish", select: () => options.exit({ kind: "finish" }) }];
+    return [{ label: "Finish", select: () => options.exit({ kind: "finish", state }) }];
   }
 
   return [];
@@ -282,7 +317,8 @@ const Stepper: FC<{ step: SetupStep; compact: boolean }> = ({ compact, step }) =
         { step: "connection", label: "1 Conn" },
         { step: "traffic-scope", label: "2 Scope" },
         { step: "domains", label: "3 Domains" },
-        { step: "verify", label: "4 Verify" },
+        { step: "preflight", label: "4 Preflight" },
+        { step: "verify", label: "5 Verify" },
       ]
     : STEPS;
 
@@ -348,11 +384,24 @@ const SetupBody: FC<{ state: SetupWizardState; menu: SetupMenuItem[] }> = ({ sta
     );
   }
 
+  if (state.step === "preflight") {
+    return (
+      <Box flexDirection="column">
+        <Text bold>Preflight wrappers</Text>
+        <Text color="gray">Choose CLI names that should run through vpnctl exec.</Text>
+        <Box height={1} />
+        <SetupMenu menu={menu} selectedIndex={state.selectedIndex} />
+        <Box height={1} />
+        <Text color="gray">Wrappers install to {DEFAULT_PREFLIGHT_WRAPPER_DIR}.</Text>
+      </Box>
+    );
+  }
+
   return (
     <Box flexDirection="column">
       <Text bold>{state.installed ? "Ready" : "Config ready"}</Text>
       <Box height={1} />
-      <Text>{state.installed ? "vpnctl is installed. Open the dashboard with vpnctl." : "Run sudo vpnctl install, then open vpnctl."}</Text>
+      <Text>{state.installed ? "vpnctl is installed. Open the dashboard with vpnctl." : "Run the installer again, then open vpnctl."}</Text>
       {state.installOutput.length === 0 ? null : (
         <>
           <Box height={1} />
@@ -414,7 +463,7 @@ const SetupFooter: FC<{ compact: boolean; state: SetupWizardState }> = ({ compac
     state.step === "verify"
       ? [
           { value: "Enter", label: "Close" },
-          { value: "Q", label: "Quit setup" },
+          { value: "Q", label: "Quit" },
         ]
       : state.textField !== null
         ? [
@@ -425,7 +474,7 @@ const SetupFooter: FC<{ compact: boolean; state: SetupWizardState }> = ({ compac
             { value: "↑/↓", label: "Move" },
             { value: "Enter", label: "Select" },
             { value: "Esc", label: "Back" },
-            { value: "Q", label: "Quit setup" },
+            { value: "Q", label: "Quit" },
           ];
 
   if (compact) {
@@ -440,7 +489,7 @@ const SetupFooter: FC<{ compact: boolean; state: SetupWizardState }> = ({ compac
     return (
       <Box flexDirection="row" flexWrap="wrap" justifyContent="space-around" width="100%">
         <KeyHint value="Enter" label="Close" />
-        <KeyHint value="Q" label="Quit setup" />
+        <KeyHint value="Q" label="Quit" />
       </Box>
     );
   }
@@ -459,7 +508,7 @@ const SetupFooter: FC<{ compact: boolean; state: SetupWizardState }> = ({ compac
       <KeyHint value="↑/↓" label="Move" />
       <KeyHint value="Enter" label="Select" />
       <KeyHint value="Esc" label="Back" />
-      <KeyHint value="Q" label="Quit setup" />
+      <KeyHint value="Q" label="Quit" />
     </Box>
   );
 };
@@ -487,11 +536,7 @@ const KeyHint: FC<{ value: string; label: string }> = ({ label, value }) => (
   </Box>
 );
 
-function submitTextField(
-  state: SetupWizardState,
-  setState: React.Dispatch<React.SetStateAction<SetupWizardState>>,
-  exit: (value?: unknown) => void,
-): void {
+function submitTextField(state: SetupWizardState, setState: React.Dispatch<React.SetStateAction<SetupWizardState>>): void {
   if (state.textField === "uri") {
     try {
       parseVlessUri(state.uri);
@@ -514,8 +559,7 @@ function submitTextField(
     return;
   }
 
-  const nextState: SetupWizardState = { ...state, domains, textField: null, selectedIndex: 0, message: null };
-  exit({ kind: "install", state: nextState });
+  setState({ ...state, domains, step: "preflight", textField: null, selectedIndex: 0, message: null });
 }
 
 function updateTextField(
@@ -551,6 +595,10 @@ function moveSetupBack(state: SetupWizardState, setState: React.Dispatch<React.S
     setState({ ...state, step: "traffic-scope", selectedIndex: state.routingMode === "split" ? 0 : 1, message: null });
     return;
   }
+  if (state.step === "preflight") {
+    setState({ ...state, step: "domains", selectedIndex: 0, message: null });
+    return;
+  }
   if (state.step === "verify") return;
 }
 
@@ -558,12 +606,14 @@ async function writeConfigAndInstall(state: SetupWizardState, configPath: string
   try {
     await writeSetupConfig(buildConfig(state), configPath, singboxConfigPath);
     const { exitCode, output } = await runInstallCommand(state.routingMode);
+    const preflightOutput = exitCode === 0 ? await installSelectedPreflightWrappers(state.preflightCommands) : "";
+    const installOutput = [output, preflightOutput].filter((value) => value.length > 0).join("\n");
     return {
       ...state,
       step: "verify",
       selectedIndex: 0,
       installed: exitCode === 0,
-      installOutput: output,
+      installOutput,
       message: exitCode === 0 ? "Install complete." : `Install exited with code ${exitCode}. Config was still written.`,
     };
   } catch (error) {
@@ -575,6 +625,20 @@ async function writeConfigAndInstall(state: SetupWizardState, configPath: string
       message: error instanceof Error ? error.message : String(error),
     };
   }
+}
+
+async function installSelectedPreflightWrappers(commands: PreflightWrapperCommand[]): Promise<string> {
+  if (commands.length === 0) return "";
+  const results = await installPreflightWrappers(commands);
+  return formatPreflightInstallResults(results);
+}
+
+function formatPreflightInstallResults(results: PreflightWrapperInstallResult[]): string {
+  const lines = ["Preflight wrappers:"];
+  for (const result of results) {
+    lines.push(`${result.command}: ${result.status} - ${result.message}`);
+  }
+  return lines.join("\n");
 }
 
 function buildConfig(state: SetupWizardState): Config {
@@ -600,7 +664,7 @@ async function runInstallCommand(routingMode: RoutingMode): Promise<{ exitCode: 
   if (sudoExitCode !== 0) return { exitCode: sudoExitCode, output: "sudo authentication failed." };
 
   process.stdout.write("Installing vpnctl...\n");
-  const proc = Bun.spawn(["/usr/bin/sudo", "-E", ...buildVpnctlInvocation(["install", "--routing-mode", routingMode])], {
+  const proc = Bun.spawn(["/usr/bin/sudo", "-E", ...buildVpnctlInvocation(["__install", "--routing-mode", routingMode])], {
     stdin: "inherit",
     stdout: "pipe",
     stderr: "pipe",

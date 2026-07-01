@@ -25,10 +25,10 @@ describe("buildSudoReexecArgv", () => {
   test("source run via bun forwards the script path and args unchanged", () => {
     const argv = buildSudoReexecArgv({
       execPath: "/opt/homebrew/bin/bun",
-      argv: ["/opt/homebrew/bin/bun", "/repo/src/cli/index.ts", "install"],
+      argv: ["/opt/homebrew/bin/bun", "/repo/src/cli/index.ts", "__install"],
       compiled: false,
     });
 
-    expect(argv).toEqual(["sudo", "-E", "/opt/homebrew/bin/bun", "/repo/src/cli/index.ts", "install"]);
+    expect(argv).toEqual(["sudo", "-E", "/opt/homebrew/bin/bun", "/repo/src/cli/index.ts", "__install"]);
   });
 });

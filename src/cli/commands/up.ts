@@ -1,10 +1,8 @@
-import { rm } from "node:fs/promises";
 import { loadConfig } from "../../core/config";
 import { writeDesiredTunnel } from "../../core/desired-tunnel";
 import { reconcileUntilTunnelState } from "../../core/enforcement";
 import type { Exec } from "../../core/exec";
 import { realExec } from "../../core/exec";
-import { YIELD_MODE_FILE } from "../../core/paths";
 import { writeStateFile } from "../../core/state-file";
 import { startTunnel } from "../../core/tunnel-control";
 import { requireRoot } from "../root";
@@ -18,8 +16,6 @@ export async function runUp(options: UpOptions = {}): Promise<void> {
 
   const exec = options.exec ?? realExec;
   const config = await loadConfig();
-
-  await rm(YIELD_MODE_FILE, { force: true });
 
   console.log(await startTunnel(exec));
 
