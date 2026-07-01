@@ -49,6 +49,8 @@ const validConfig: Config = {
   },
   domains: ["anthropic.com"],
   dns: { servers: ["1.1.1.1", "8.8.8.8"] },
+  routing: { mode: "full" },
+  ui: { language: "en" },
   audit: { processNamePatterns: ["Code", "Cursor"] },
   exec: { blockedCountries: [] },
 };
@@ -257,7 +259,7 @@ describe("checkVpnConflicts", () => {
     expect(checks[0]).toEqual({ name: "other VPN interfaces", status: "ok", detail: "none detected" });
   });
 
-  test("warn when competing VPN interface detected, no routing conflict", async () => {
+  test("ok inventory when competing VPN interface has no route or DNS conflict", async () => {
     const exec = makeExec({
       "/sbin/ifconfig -lu": { stdout: "lo0 en0 utun20 utun21\n" },
       "/sbin/ifconfig utun21": {
@@ -269,14 +271,13 @@ describe("checkVpnConflicts", () => {
     const singboxConfig = { inbounds: [{ type: "tun", interface_name: "utun20", address: ["172.19.0.1/30"] }] };
     const checks = await checkVpnConflicts(exec, singboxConfig);
     expect(checks).toHaveLength(1);
-    expect(checks[0]?.status).toBe("warn");
+    expect(checks[0]?.status).toBe("ok");
     expect(checks[0]?.name).toBe("other VPN interfaces");
     expect(checks[0]?.detail).toContain("utun21");
-    expect(checks[0]?.detail).not.toContain("vpnctl domains");
-    expect(checks[0]?.detail).toContain("vpnctl down");
+    expect(checks[0]?.detail).toContain("no default-route or DNS conflict detected");
   });
 
-  test("two warn checks when competing VPN also wins default route", async () => {
+  test("warns only on routing conflict when competing VPN wins default route", async () => {
     const exec = makeExec({
       "/sbin/ifconfig -lu": { stdout: "lo0 en0 utun20 utun21\n" },
       "/sbin/ifconfig utun21": {
@@ -288,7 +289,7 @@ describe("checkVpnConflicts", () => {
     const singboxConfig = { inbounds: [{ type: "tun", interface_name: "utun20", address: ["172.19.0.1/30"] }] };
     const checks = await checkVpnConflicts(exec, singboxConfig);
     expect(checks).toHaveLength(2);
-    expect(checks[0]?.status).toBe("warn");
+    expect(checks[0]?.status).toBe("ok");
     expect(checks[1]?.status).toBe("warn");
     expect(checks[1]?.name).toBe("VPN routing conflict");
     expect(checks[1]?.detail).toContain("utun21");
@@ -331,19 +332,25 @@ describe("formatDoctorReport", () => {
 
   test("reports all-OK when every check passes", () => {
     const output = formatDoctorReport([ok]);
-    expect(output).toContain("OK   a: fine");
+    expect(output).toContain("OK    a  fine");
     expect(output).toContain("all checks OK.");
   });
 
   test("counts warnings when there are no failures", () => {
     const output = formatDoctorReport([ok, warn]);
-    expect(output).toContain("WARN b: meh");
+    expect(output).toContain("WARN  b  meh");
     expect(output).toContain("1 check(s) need attention.");
   });
 
   test("counts failures over warnings", () => {
     const output = formatDoctorReport([ok, warn, fail]);
-    expect(output).toContain("FAIL c: broken");
+    expect(output).toContain("FAIL  c  broken");
     expect(output).toContain("1 check(s) failed.");
+  });
+
+  test("colors status labels when enabled", () => {
+    const output = formatDoctorReport([ok], { color: true });
+
+    expect(output).toContain("\u001B[32mOK");
   });
 });

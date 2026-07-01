@@ -38,6 +38,8 @@ const baseConfig: Config = {
   },
   domains: ["anthropic.com", "openai.com"],
   dns: { servers: ["1.1.1.1", "8.8.8.8"] },
+  routing: { mode: "full" },
+  ui: { language: "en" },
   audit: { processNamePatterns: ["Code", "Cursor"] },
   exec: { blockedCountries: [] },
 };
@@ -108,6 +110,24 @@ describe("runDomainsAdd", () => {
       const singboxConfig = await readSingBoxConfig(singboxConfigPath);
       expect(singboxConfig).not.toBeNull();
       expect(calls[0]).toEqual(["Added claude.ai."]);
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  test("preserves split tunnel mode when regenerating sing-box.json", async () => {
+    const dir = await mkdtemp(path.join(os.tmpdir(), "vpnctl-test-"));
+    const configPath = path.join(dir, "config.json");
+    const singboxConfigPath = path.join(dir, "sing-box.json");
+    try {
+      await saveConfig({ ...baseConfig, routing: { mode: "split" } }, configPath);
+
+      await captureConsoleLog(() => runDomainsAdd("claude.ai", { configPath, singboxConfigPath }));
+
+      expect(await readSingBoxConfig(singboxConfigPath)).toMatchObject({
+        dns: { final: "local-dns" },
+        route: { final: "direct" },
+      });
     } finally {
       await rm(dir, { recursive: true, force: true });
     }

@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { buildTrayPlist, isRosettaAvailable } from "../src/cli/commands/tray";
+import { buildTrayPlist, isRosettaAvailable, resolveTrayAgentDomain } from "../src/cli/commands/tray";
 import type { Exec } from "../src/core/exec";
 import { LAUNCHD_LABEL_TRAY, TRAY_LOG_FILE } from "../src/core/paths";
 
@@ -20,6 +20,13 @@ describe("buildTrayPlist", () => {
       stdoutPath: TRAY_LOG_FILE,
       stderrPath: TRAY_LOG_FILE,
     });
+  });
+});
+
+describe("resolveTrayAgentDomain", () => {
+  test("uses SUDO_UID only while running as root", () => {
+    expect(resolveTrayAgentDomain(0, "501")).toBe("gui/501");
+    expect(resolveTrayAgentDomain(501, "0")).toBe("gui/501");
   });
 });
 

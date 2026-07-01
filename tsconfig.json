@@ -3,6 +3,7 @@
     "lib": ["ESNext"],
     "target": "ESNext",
     "module": "ESNext",
+    "jsx": "react-jsx",
     "moduleDetection": "force",
     "moduleResolution": "bundler",
     "allowImportingTsExtensions": true,
@@ -18,5 +19,5 @@
     "resolveJsonModule": true,
     "types": ["bun-types"]
   },
-  "include": ["bin", "src", "test"]
+  "include": ["bin", "src", "test", "scripts/print-setup-data.ts"]
 }

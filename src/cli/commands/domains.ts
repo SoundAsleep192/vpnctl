@@ -29,6 +29,7 @@ async function regenerateSingBoxConfig(config: Config, singboxConfigPath: string
     domains: config.domains,
     tun: config.tunnel,
     dnsServer: config.dns.servers[0],
+    routingMode: config.routing.mode,
   });
   await writeSingBoxConfig(singboxConfig, singboxConfigPath);
 }

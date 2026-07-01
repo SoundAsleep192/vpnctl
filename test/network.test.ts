@@ -178,6 +178,20 @@ describe("isSingBoxRunning", () => {
     }
   });
 
+  test("considers root-owned sing-box live when Operation not permitted", async () => {
+    const dir = await mkdtemp(path.join(os.tmpdir(), "vpnctl-test-"));
+    const pidFile = path.join(dir, "tunnel.pid");
+    try {
+      await writeFile(pidFile, "4242\n");
+      const exec = makeExec({
+        "/bin/kill -0 4242": { stdout: "", stderr: "kill: 4242: Operation not permitted\n", exitCode: 1 },
+      });
+      expect(await isSingBoxRunning(exec, pidFile)).toBe(true);
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
   test("returns false when the pid is stale", async () => {
     const dir = await mkdtemp(path.join(os.tmpdir(), "vpnctl-test-"));
     const pidFile = path.join(dir, "tunnel.pid");

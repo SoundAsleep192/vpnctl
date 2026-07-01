@@ -8,6 +8,8 @@ import {
   createSandboxContainerExec,
   parseSecretMountSpec,
   parseSandboxPreset,
+  renderDockerfileTemplate,
+  resolvePresetSecretNames,
   resolveSecretMounts,
   type SecretMount,
   type WorkspaceMount,
@@ -27,29 +29,13 @@ const CLAUDE_SECRET: SecretMount = {
 };
 
 describe("sandbox options", () => {
-  /**
-   * Дано:
-   * - пользователь выбирает preset из CLI
-   *
-   * Ожидается:
-   * - известные preset проходят
-   * - неизвестные preset отклоняются до Docker-запуска
-   */
-  test("валидирует preset", () => {
+  test("validates presets", () => {
     expect(parseSandboxPreset("claude")).toBe("claude");
     expect(parseSandboxPreset("codex")).toBe("codex");
     expect(() => parseSandboxPreset("other")).toThrow(/unknown sandbox preset/);
   });
 
-  /**
-   * Дано:
-   * - пользователь явно передает custom secret mount
-   *
-   * Ожидается:
-   * - mount парсится как read-only по умолчанию
-   * - режим rw принимается только явно
-   */
-  test("парсит явные secret mount specs", () => {
+  test("parses explicit secret mount specs", () => {
     expect(parseSecretMountSpec("~/secret:/home/developer/secret")).toMatchObject({
       target: "/home/developer/secret",
       readonly: true,
@@ -61,34 +47,29 @@ describe("sandbox options", () => {
     expect(() => parseSecretMountSpec("~/secret:/home/developer/secret:bad")).toThrow(/mode must be ro or rw/);
   });
 
-  /**
-   * Дано:
-   * - пользователь явно включает named secret claude
-   *
-   * Ожидается:
-   * - host home не монтируется целиком
-   * - монтируется только точечный credential path
-   */
-  test("разворачивает named secrets в точечные mounts", () => {
+  test("resolves named secrets to focused mounts", () => {
     const mounts = resolveSecretMounts(["claude"], []);
 
     expect(mounts).toHaveLength(1);
     expect(mounts[0]?.target).toBe("/home/developer/.claude");
     expect(mounts[0]?.source.endsWith("/.claude")).toBe(true);
   });
+
+  test("adds preset credentials without duplicate mounts", () => {
+    expect(resolvePresetSecretNames("claude", [])).toEqual(["claude"]);
+    expect(resolvePresetSecretNames("claude", ["claude"])).toEqual(["claude"]);
+    expect(resolvePresetSecretNames("codex", ["claude"])).toEqual(["codex", "claude"]);
+    expect(resolvePresetSecretNames(undefined, [])).toEqual([]);
+  });
 });
 
 describe("sandbox docker generation", () => {
-  /**
-   * Дано:
-   * - agent container запускается поверх VPN sidecar namespace
-   * - workspace и secret mount переданы явно
-   *
-   * Ожидается:
-   * - agent не получает NET_ADMIN и Docker socket
-   * - agent получает TZ из exit profile
-   */
-  test("строит docker run для non-root agent без Docker socket", () => {
+  test("renders Dockerfile templates from named placeholders", () => {
+    expect(renderDockerfileTemplate("RUN npm install -g {{CODEX_NPM_PACKAGE}}")).toBe("RUN npm install -g @openai/codex");
+    expect(() => renderDockerfileTemplate("{{UNKNOWN_PLACEHOLDER}}")).toThrow("unknown sandbox Dockerfile placeholder");
+  });
+
+  test("builds docker run args for a non-root agent without Docker socket", () => {
     const args = buildAgentDockerRunArgs({
       command: ["claude"],
       timezone: "Europe/Prague",
@@ -110,16 +91,7 @@ describe("sandbox docker generation", () => {
     expect(args.join(" ")).not.toContain("/var/run/docker.sock");
   });
 
-  /**
-   * Дано:
-   * - VPN sidecar стартует отдельным контейнером
-   *
-   * Ожидается:
-   * - sidecar получает NET_ADMIN и /dev/net/tun
-   * - sing-box config монтируется read-only
-   * - killswitch default policy блокирует OUTPUT
-   */
-  test("строит docker run для VPN sidecar с namespace-local killswitch", () => {
+  test("builds docker run args for a VPN sidecar with namespace-local killswitch", () => {
     const args = buildVpnDockerRunArgs("/tmp/sing-box.json");
     const joined = args.join(" ");
 
@@ -130,16 +102,7 @@ describe("sandbox docker generation", () => {
     expect(joined).toContain("vpnctl0");
   });
 
-  /**
-   * Дано:
-   * - VS Code mode использует compose/devcontainer
-   *
-   * Ожидается:
-   * - dev service разделяет namespace с vpn service
-   * - Docker socket отсутствует
-   * - Claude extension ставится в remote backend
-   */
-  test("строит compose и devcontainer для protected VS Code backend", () => {
+  test("builds compose and devcontainer files for a protected VS Code backend", () => {
     const compose = buildDockerComposeYaml({
       timezone: "Europe/Prague",
       workspace: WORKSPACE,
@@ -163,15 +126,7 @@ describe("sandbox docker generation", () => {
     expect(devcontainer).toContain("/workspace/project");
   });
 
-  /**
-   * Дано:
-   * - devcontainer config уже сгенерирован
-   *
-   * Ожидается:
-   * - VS Code URI указывает на dev-container target
-   * - workspace path остается container path, а не host path
-   */
-  test("строит VS Code dev-container URI", () => {
+  test("builds VS Code dev-container URI", () => {
     const uri = buildDevcontainerUri({
       hostPath: WORKSPACE.source,
       devcontainerFilePath: "/tmp/devcontainer.json",
@@ -182,15 +137,7 @@ describe("sandbox docker generation", () => {
     expect(uri.endsWith("/workspace/project")).toBe(true);
   });
 
-  /**
-   * Дано:
-   * - exit profile resolver выполняется через временный контейнер в sandbox namespace
-   *
-   * Ожидается:
-   * - probe container тоже non-root и без лишних capabilities
-   * - Docker socket не монтируется
-   */
-  test("строит защищенный docker run для profile probe", async () => {
+  test("builds protected docker run args for the profile probe", async () => {
     let capturedArgs: string[] = [];
     const sandboxExec = createSandboxContainerExec(async (cmd, args) => {
       capturedArgs = [cmd, ...args];

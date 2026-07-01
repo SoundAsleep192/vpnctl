@@ -11,9 +11,12 @@ const SAMPLE_URI =
 
 const AI_DEV_TOOLS_DOMAINS = [
   "api.anthropic.com",
+  "api.claude.com",
   "console.anthropic.com",
   "claude.ai",
+  "claude.com",
   "console.claude.ai",
+  "platform.claude.com",
   "statsig.anthropic.com",
   "accounts.anthropic.com",
   "log.anthropic.com",
@@ -57,6 +60,7 @@ describe("deriveDomainSuffixes", () => {
   test("collapses FQDNs to deduped registrable-domain suffixes, in first-seen order", () => {
     expect(deriveDomainSuffixes(AI_DEV_TOOLS_DOMAINS)).toEqual([
       "anthropic.com",
+      "claude.com",
       "claude.ai",
       "cursor.com",
       "cursor.sh",
@@ -77,8 +81,38 @@ describe("buildSingBoxConfig", () => {
       outbound,
       domains: AI_DEV_TOOLS_DOMAINS,
       tun: { interfaceName: "utun20", address: "172.19.0.1/30" },
+      routingMode: "full",
     });
 
     expect(config).toEqual(sampleConfig);
+  });
+
+  test("builds split tunnel mode with direct fallback for DNS and ordinary traffic", () => {
+    const outbound = parseVlessUri(SAMPLE_URI);
+
+    const config = buildSingBoxConfig({
+      outbound,
+      domains: AI_DEV_TOOLS_DOMAINS,
+      tun: { interfaceName: "utun20", address: "172.19.0.1/30" },
+      routingMode: "split",
+    });
+
+    expect(config.dns.final).toBe("local-dns");
+    expect(config.route.final).toBe("direct");
+    expect(config.route.rules).toContainEqual({
+      domain_suffix: [
+        "anthropic.com",
+        "claude.com",
+        "claude.ai",
+        "cursor.com",
+        "cursor.sh",
+        "cursorapi.com",
+        "openai.com",
+        "chatgpt.com",
+        "oaiusercontent.com",
+        "oaistatic.com",
+      ],
+      outbound: "proxy",
+    });
   });
 });

@@ -16,6 +16,7 @@ describe("AI_DEV_TOOLS_DOMAINS", () => {
       expect(domain).not.toBe("");
     }
     expect(AI_DEV_TOOLS_DOMAINS).toContain("api.anthropic.com");
+    expect(AI_DEV_TOOLS_DOMAINS).toContain("platform.claude.com");
   });
 });
 
@@ -41,6 +42,8 @@ describe("buildSetupConfig", () => {
       tunnelInterfaceName: "utun20",
       tunnelAddress: "172.19.0.1/30",
       dnsServers: ["1.1.1.1", "8.8.8.8"],
+      routingMode: "split",
+      uiLanguage: "en",
     });
 
     expect(config).toEqual({
@@ -66,6 +69,8 @@ describe("buildSetupConfig", () => {
       },
       domains: ["anthropic.com", "claude.ai"],
       dns: { servers: ["1.1.1.1", "8.8.8.8"] },
+      routing: { mode: "split" },
+      ui: { language: "en" },
       audit: { processNamePatterns: DEFAULT_AUDIT_PROCESS_NAME_PATTERNS },
       exec: { blockedCountries: [] },
     });
@@ -79,6 +84,7 @@ describe("buildSetupConfig", () => {
         tunnelInterfaceName: "utun20",
         tunnelAddress: "172.19.0.1/30",
         dnsServers: ["1.1.1.1"],
+        routingMode: "full",
       }),
     ).toThrow(/not a vless/);
   });

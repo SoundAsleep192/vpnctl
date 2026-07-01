@@ -1,6 +1,7 @@
 import { mkdir } from "node:fs/promises";
 import path from "node:path";
 import { z } from "zod";
+import type { RealityOutbound } from "./vless";
 import {
   CONFIG_FILE,
   DEFAULT_AUDIT_PROCESS_NAME_PATTERNS,
@@ -8,6 +9,33 @@ import {
   DEFAULT_TUN_ADDRESS,
   DEFAULT_TUN_INTERFACE_NAME,
 } from "./paths";
+
+const routingModeSchema = z.enum(["full", "split"]);
+const uiLanguageSchema = z.enum(["en", "ru"]);
+
+export type RoutingMode = "full" | "split";
+export type UiLanguage = "en" | "ru";
+
+export const DEFAULT_ROUTING_MODE: RoutingMode = "split";
+export const DEFAULT_UI_LANGUAGE: UiLanguage = detectSystemLanguage();
+
+export interface Config {
+  tunnel: { interfaceName: string; address: string };
+  outbound: RealityOutbound;
+  domains: string[];
+  dns: { servers: string[] };
+  routing: { mode: RoutingMode };
+  ui: { language: UiLanguage };
+  audit: { processNamePatterns: string[] };
+  exec: { blockedCountries: string[] };
+}
+
+interface LanguageEnvironment {
+  LANG?: string;
+  LANGUAGE?: string;
+  LC_ALL?: string;
+  LC_MESSAGES?: string;
+}
 
 const realityOutboundSchema = z.object({
   type: z.literal("vless"),
@@ -30,7 +58,7 @@ const realityOutboundSchema = z.object({
       short_id: z.string(),
     }),
   }),
-});
+}) satisfies z.ZodType<RealityOutbound, z.ZodTypeDef, unknown>;
 
 export const configSchema = z.object({
   tunnel: z
@@ -46,6 +74,16 @@ export const configSchema = z.object({
       servers: z.array(z.string()).default(DEFAULT_DNS_SERVERS),
     })
     .default({}),
+  routing: z
+    .object({
+      mode: routingModeSchema.default(DEFAULT_ROUTING_MODE),
+    })
+    .default({}),
+  ui: z
+    .object({
+      language: uiLanguageSchema.default(DEFAULT_UI_LANGUAGE),
+    })
+    .default({}),
   audit: z
     .object({
       processNamePatterns: z.array(z.string()).default(DEFAULT_AUDIT_PROCESS_NAME_PATTERNS),
@@ -56,9 +94,34 @@ export const configSchema = z.object({
       blockedCountries: z.array(z.string()).default([]),
     })
     .default({}),
-});
+}) satisfies z.ZodType<Config, z.ZodTypeDef, unknown>;
 
-export type Config = z.infer<typeof configSchema>;
+export function parseRoutingMode(value: string): RoutingMode {
+  const result = routingModeSchema.safeParse(value);
+  if (!result.success) {
+    throw new Error("routing mode must be one of: full, split");
+  }
+  return result.data;
+}
+
+export function parseUiLanguage(value: string): UiLanguage {
+  const result = uiLanguageSchema.safeParse(value);
+  if (!result.success) {
+    throw new Error("ui language must be one of: en, ru");
+  }
+  return result.data;
+}
+
+export function detectSystemLanguage(env?: LanguageEnvironment): UiLanguage {
+  const source: LanguageEnvironment = env ?? {
+    LANG: Bun.env.LANG,
+    LANGUAGE: Bun.env.LANGUAGE,
+    LC_ALL: Bun.env.LC_ALL,
+    LC_MESSAGES: Bun.env.LC_MESSAGES,
+  };
+  const locale = source.LC_ALL ?? source.LC_MESSAGES ?? source.LANGUAGE ?? source.LANG ?? "";
+  return locale.toLowerCase().startsWith("ru") ? "ru" : "en";
+}
 
 export async function loadConfig(filePath: string = CONFIG_FILE): Promise<Config> {
   const file = Bun.file(filePath);

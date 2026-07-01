@@ -24,6 +24,7 @@ import {
 import { runSetup } from "../src/cli/commands/setup";
 import { runStatus } from "../src/cli/commands/status";
 import { runTrayInstall, runTrayUninstall } from "../src/cli/commands/tray";
+import { runTui } from "../src/cli/commands/tui";
 import { runUninstall } from "../src/cli/commands/uninstall";
 import { runUp } from "../src/cli/commands/up";
 import { runUpdate } from "../src/cli/commands/update";
@@ -39,15 +40,17 @@ program
   .command("setup")
   .description("interactively configure vpnctl (VLESS+Reality URI, domains, TUN interface, DNS servers)")
   .option("--uri <uri>", "VLESS+Reality URI (skips the interactive prompt)")
-  .action(async (opts: { uri?: string }) => {
-    await runSetup({ uri: opts.uri });
+  .option("--routing-mode <mode>", "routing mode: full or split")
+  .action(async (opts: { uri?: string; routingMode?: string }) => {
+    await runSetup({ uri: opts.uri, routingMode: opts.routingMode });
   });
 
 program
   .command("install")
   .description("install the pf anchor, /etc/pf.conf patch, and LaunchDaemons (requires root)")
-  .action(async () => {
-    await runInstall();
+  .option("--routing-mode <mode>", "persist routing mode before installing: full or split")
+  .action(async (opts: { routingMode?: string }) => {
+    await runInstall({ routingMode: opts.routingMode });
   });
 
 program
@@ -90,7 +93,7 @@ program
 
 program
   .command("check")
-  .description("probe AI dev tool endpoints over the tunnel (requires root, tunnel must be up)")
+  .description("probe protected domains over the tunnel (requires root, tunnel must be up)")
   .option("--full", "probe every domain in config.domains instead of the quick curated list")
   .action(async (opts: { full?: boolean }) => {
     await runCheck({ full: opts.full });
@@ -109,6 +112,14 @@ program
   .option("--ip", "also resolve the current public IP")
   .action(async (opts: { ip?: boolean }) => {
     await runStatus({ ip: opts.ip });
+  });
+
+program
+  .command("tui")
+  .alias("ui")
+  .description("open the interactive dashboard")
+  .action(async () => {
+    await runTui();
   });
 
 const domainsCommand = program.command("domains").description("manage the domain allowlist routed through the tunnel");
@@ -193,7 +204,7 @@ function collectOption(value: string, previous: string[]): string[] {
   return [...previous, value];
 }
 
-const sandboxCommand = program.command("sandbox").description("run AI agents inside a Docker VPN sandbox");
+const sandboxCommand = program.command("sandbox").description("run agents inside a Docker VPN sandbox");
 
 sandboxCommand
   .command("run")
@@ -316,7 +327,7 @@ trayCommand
 
 program
   .command("audit")
-  .description("snapshot AI dev tool process connections")
+  .description("snapshot configured process connections")
   .option("--watch <seconds>", "repeat the snapshot every <seconds> seconds", (value) => Number(value))
   .option("--log", "append the snapshot to the audit log instead of printing it")
   .option("--install-agent", "install a per-user LaunchAgent that runs `vpnctl audit --log` periodically")
@@ -326,7 +337,15 @@ program
   });
 
 try {
-  await program.parseAsync();
+  if (process.argv.slice(2).length === 0) {
+    if (process.stdin.isTTY && process.stdout.isTTY) {
+      await runTui();
+    } else {
+      program.outputHelp();
+    }
+  } else {
+    await program.parseAsync();
+  }
 } catch (error) {
   console.error((error as Error).message);
   process.exit(1);

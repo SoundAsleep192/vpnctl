@@ -1,6 +1,7 @@
 import type { Exec } from "./exec";
 
 const UTUN_PATTERN = /^utun[0-9]+$/;
+const PROCESS_EXISTS_BUT_FORBIDDEN_PATTERN = /Operation not permitted/i;
 
 export async function getRouteInterface(exec: Exec, target: string): Promise<string | null> {
   const result = await exec("/sbin/route", ["-n", "get", target]);
@@ -65,7 +66,7 @@ export async function isSingBoxRunning(exec: Exec, pidFile: string): Promise<boo
   if (pid === null) return false;
 
   const result = await exec("/bin/kill", ["-0", String(pid)]);
-  return result.exitCode === 0;
+  return result.exitCode === 0 || PROCESS_EXISTS_BUT_FORBIDDEN_PATTERN.test(result.stderr);
 }
 
 export async function getTrustedInterfaceByRoute(exec: Exec, singboxConfig: unknown): Promise<string | null> {

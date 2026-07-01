@@ -1,7 +1,7 @@
 {
   "name": "vpnctl",
   "version": "0.2.2",
-  "description": "Fail-closed macOS VPN killswitch (pf firewall + DNS sinkhole + sing-box VLESS/Reality) for AI dev tools, driven by a console CLI.",
+  "description": "Fail-closed macOS VPN killswitch (pf firewall + DNS sinkhole + sing-box VLESS/Reality) for protected domains, driven by a console CLI.",
   "type": "module",
   "license": "MIT",
   "private": false,
@@ -28,13 +28,17 @@
   "dependencies": {
     "@clack/prompts": "^0.9.1",
     "commander": "^13.1.0",
+    "ink": "^7.1.0",
     "picocolors": "^1.1.1",
+    "react": "^19.2.7",
+    "react-devtools-core": "^7.0.1",
     "systray2": "^2.1.4",
     "zod": "^3.24.1"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
     "@types/bun": "latest",
+    "@types/react": "^19.2.17",
     "eslint": "^10.5.0",
     "eslint-config-prettier": "^10.1.8",
     "markdownlint-cli2": "^0.22.1",

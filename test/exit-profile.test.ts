@@ -15,16 +15,7 @@ function makeExec(responses: Record<string, string | ExecResult>): Exec {
 }
 
 describe("resolveExitProfile", () => {
-  /**
-   * Дано:
-   * - ipinfo возвращает публичный IP, страну, город, координаты и IANA timezone
-   * - Anthropic country endpoint возвращает страну провайдера
-   *
-   * Ожидается:
-   * - профиль считается пригодным для защищенного запуска
-   * - timezone и provider-country доступны вызывающему коду
-   */
-  test("строит профиль выхода из ipinfo и Anthropic country", async () => {
+  test("builds an exit profile from ipinfo and Anthropic country", async () => {
     const exec = makeExec({
       [IPINFO_COMMAND]:
         '{"ip":"185.72.10.210","city":"Prague","region":"Prague","country":"CZ","loc":"50.0880,14.4208","timezone":"Europe/Prague"}',
@@ -53,16 +44,7 @@ describe("resolveExitProfile", () => {
     expect(formatExitProfileLine(result.profile)).toBe("185.72.10.210 CZ Prague Europe/Prague Anthropic:CZ");
   });
 
-  /**
-   * Дано:
-   * - ipinfo возвращает валидную географию выхода
-   * - Anthropic country endpoint временно недоступен
-   *
-   * Ожидается:
-   * - профиль не падает, потому что timezone и страна уже известны
-   * - confidence снижается до medium
-   */
-  test("оставляет профиль usable без Anthropic country, но снижает confidence", async () => {
+  test("keeps the profile usable without Anthropic country and lowers confidence", async () => {
     const exec = makeExec({
       [IPINFO_COMMAND]: '{"ip":"185.72.10.210","country":"CZ","timezone":"Europe/Prague"}',
       [ANTHROPIC_COUNTRY_COMMAND]: { stdout: "", stderr: "timeout", exitCode: 28 },
@@ -76,16 +58,7 @@ describe("resolveExitProfile", () => {
     expect(result.profile.confidence).toBe("medium");
   });
 
-  /**
-   * Дано:
-   * - ipinfo возвращает публичный IP и страну
-   * - timezone отсутствует
-   *
-   * Ожидается:
-   * - защищенный профиль не создается
-   * - вызывающий код получает причину fail-closed
-   */
-  test("fail-closed когда timezone не удалось определить", async () => {
+  test("fails closed when timezone cannot be resolved", async () => {
     const exec = makeExec({
       [IPINFO_COMMAND]: '{"ip":"185.72.10.210","country":"CZ"}',
     });

@@ -106,16 +106,7 @@ describe("preflight", () => {
 });
 
 describe("buildExecLaunchPlan", () => {
-  /**
-   * Дано:
-   * - host tunnel проходит preflight
-   * - exit profile содержит IANA timezone
-   *
-   * Ожидается:
-   * - план запуска использует timezone VPN-выхода
-   * - child process не должен наследовать host timezone молча
-   */
-  test("добавляет timezone из exit profile в план запуска", async () => {
+  test("adds timezone from exit profile to the launch plan", async () => {
     const exec = makeExec({
       ...TUNNEL_UP_RESPONSES,
       [IPINFO_COMMAND]: '{"ip":"185.72.10.210","city":"Prague","region":"Prague","country":"CZ","timezone":"Europe/Prague"}',
@@ -129,16 +120,7 @@ describe("buildExecLaunchPlan", () => {
     expect(plan.profileWarning).toBeNull();
   });
 
-  /**
-   * Дано:
-   * - host tunnel проходит preflight
-   * - exit profile не содержит timezone
-   * - debug escape hatch не включен
-   *
-   * Ожидается:
-   * - запуск останавливается fail-closed
-   */
-  test("останавливает запуск когда exit profile без timezone", async () => {
+  test("stops launch when exit profile has no timezone", async () => {
     const exec = makeExec({
       ...TUNNEL_UP_RESPONSES,
       [IPINFO_COMMAND]: '{"ip":"185.72.10.210","country":"CZ"}',
@@ -147,17 +129,7 @@ describe("buildExecLaunchPlan", () => {
     await expect(buildExecLaunchPlan(exec, sampleConfig, [])).rejects.toThrow(/timezone/);
   });
 
-  /**
-   * Дано:
-   * - host tunnel проходит preflight
-   * - exit profile не содержит timezone
-   * - пользователь явно включил allow-unknown-profile
-   *
-   * Ожидается:
-   * - запуск получает громкое предупреждение
-   * - timezone становится UTC, а не timezone host
-   */
-  test("использует UTC только при явном allow-unknown-profile", async () => {
+  test("uses UTC only with explicit allow-unknown-profile", async () => {
     const exec = makeExec({
       ...TUNNEL_UP_RESPONSES,
       [IPINFO_COMMAND]: '{"ip":"185.72.10.210","country":"CZ"}',

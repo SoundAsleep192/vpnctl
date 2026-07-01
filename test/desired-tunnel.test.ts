@@ -69,10 +69,6 @@ describe("decideTunnelAction", () => {
 });
 
 describe("enforceDesiredTunnel", () => {
-  /**
-   * desired=down while the tunnel daemon is loaded ⇒ the monitor disables and
-   * boots it out, returning "stop".
-   */
   test("stops a loaded tunnel when the desired state is down", async () => {
     await withTmpFile(async (filePath) => {
       await writeDesiredTunnel("down", filePath);

@@ -1,4 +1,5 @@
 import pkg from "../../../package.json";
+import pc from "picocolors";
 import { loadConfig } from "../../core/config";
 import type { Exec } from "../../core/exec";
 import { realExec } from "../../core/exec";
@@ -26,6 +27,10 @@ export interface DoctorCheck {
   name: string;
   status: DoctorStatus;
   detail: string;
+}
+
+export interface DoctorReportOptions {
+  color?: boolean;
 }
 
 export function checkBunVersion(version: string, minVersion: string = MIN_BUN_VERSION): DoctorCheck {
@@ -95,8 +100,11 @@ export async function checkVpnConflicts(exec: Exec, singboxConfig: unknown): Pro
     const names = conflicts.otherInterfaces.map((iface) => `${iface.name} (${iface.inet})`).join(", ");
     checks.push({
       name: "other VPN interfaces",
-      status: "warn",
-      detail: `${names} — vpnctl's killswitch may block their traffic; run \`sudo vpnctl down\` to suspend the killswitch, or \`sudo vpnctl up\` after connecting your VPN to restore AI-tool protection`,
+      status: "ok",
+      detail:
+        conflicts.routingConflict === null && conflicts.dnsConflicts.length === 0
+          ? `${names} — no default-route or DNS conflict detected`
+          : `${names} — see conflict rows below`,
     });
   }
 
@@ -104,7 +112,7 @@ export async function checkVpnConflicts(exec: Exec, singboxConfig: unknown): Pro
     checks.push({
       name: "VPN routing conflict",
       status: "warn",
-      detail: `default route is through ${conflicts.routingConflict}, not vpnctl's tunnel — AI tool traffic may not be protected; run \`vpnctl up\` after connecting your other VPN`,
+      detail: `default route is through ${conflicts.routingConflict}, not vpnctl's tunnel — protected traffic may not be routed as expected; run \`vpnctl up\` after connecting your other VPN`,
     });
   }
 
@@ -112,7 +120,7 @@ export async function checkVpnConflicts(exec: Exec, singboxConfig: unknown): Pro
     checks.push({
       name: "VPN DNS override",
       status: "warn",
-      detail: `${dns.iface} is pushing DNS servers (${dns.servers.join(", ")}) — apps may resolve AI domain IPs not covered by vpnctl's pf tables`,
+      detail: `${dns.iface} is pushing DNS servers (${dns.servers.join(", ")}) — apps may resolve protected domain IPs not covered by vpnctl's pf tables`,
     });
   }
 
@@ -136,13 +144,18 @@ export async function checkForUpdate(
 
 const STATUS_LABEL: Record<DoctorStatus, string> = { ok: "OK  ", warn: "WARN", fail: "FAIL" };
 
-export function formatDoctorReport(checks: DoctorCheck[]): string {
-  const lines = checks.map((check) => `${STATUS_LABEL[check.status]} ${check.name}: ${check.detail}`);
+export function formatDoctorReport(checks: DoctorCheck[], options: DoctorReportOptions = {}): string {
+  const nameWidth = checks.reduce((width, check) => Math.max(width, check.name.length), 0);
+  const lines = ["vpnctl doctor", ""];
+
+  for (const check of checks) {
+    lines.push(`${formatStatusLabel(check.status, options.color === true)}  ${check.name.padEnd(nameWidth)}  ${check.detail}`);
+  }
 
   const failed = checks.filter((check) => check.status === "fail").length;
   const warned = checks.filter((check) => check.status === "warn").length;
 
-  lines.push("---");
+  lines.push("");
   if (failed > 0) {
     lines.push(`${failed} check(s) failed.`);
   } else if (warned > 0) {
@@ -152,6 +165,15 @@ export function formatDoctorReport(checks: DoctorCheck[]): string {
   }
 
   return lines.join("\n");
+}
+
+function formatStatusLabel(status: DoctorStatus, color: boolean): string {
+  const label = STATUS_LABEL[status];
+  if (!color) return label;
+  const colors = pc.createColors(true);
+  if (status === "ok") return colors.green(label);
+  if (status === "warn") return colors.yellow(label);
+  return colors.red(label);
 }
 
 export interface DoctorOptions {
@@ -177,7 +199,7 @@ export async function runDoctor(options: DoctorOptions = {}): Promise<void> {
     await checkForUpdate(exec),
   ];
 
-  console.log(formatDoctorReport(checks));
+  console.log(formatDoctorReport(checks, { color: process.stdout.isTTY }));
 
   if (checks.some((check) => check.status === "fail")) {
     process.exitCode = 1;

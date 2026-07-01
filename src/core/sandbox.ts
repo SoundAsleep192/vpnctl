@@ -2,6 +2,8 @@ import { Buffer } from "node:buffer";
 import { mkdir, rm, stat } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
+import agentDockerfileTemplate from "../../templates/sandbox/agent.Dockerfile";
+import vpnDockerfileTemplate from "../../templates/sandbox/vpn.Dockerfile";
 import type { Config } from "./config";
 import type { Exec } from "./exec";
 import { realExec } from "./exec";
@@ -41,25 +43,17 @@ const DEFAULT_LOG_LINES = 100;
 const CLAUDE_INSTALL_SCRIPT_URL = "https://claude.ai/install.sh";
 const CODEX_NPM_PACKAGE = "@openai/codex";
 
-const VPN_DOCKERFILE = `FROM ghcr.io/sagernet/sing-box:latest
-RUN apk add --no-cache iptables iproute2 curl bind-tools tzdata
-`;
+const DOCKERFILE_TEMPLATE_VALUES: Record<string, string> = {
+  CLAUDE_INSTALL_SCRIPT_URL,
+  CODEX_NPM_PACKAGE,
+  SANDBOX_DEVELOPER_HOME,
+  SANDBOX_DEVELOPER_UID,
+  SANDBOX_DEVELOPER_USER,
+  SANDBOX_WORKSPACE_ROOT,
+};
 
-const AGENT_DOCKERFILE = `FROM mcr.microsoft.com/devcontainers/typescript-node:1-22-bookworm
-USER root
-RUN apt-get update && apt-get install -y --no-install-recommends dnsutils iproute2 iptables tzdata && rm -rf /var/lib/apt/lists/*
-RUN npm install -g ${CODEX_NPM_PACKAGE}
-RUN set -eux; \\
-  if ! getent group ${SANDBOX_DEVELOPER_USER} >/dev/null; then groupadd -g ${SANDBOX_DEVELOPER_UID} ${SANDBOX_DEVELOPER_USER}; fi; \\
-  if ! id -u ${SANDBOX_DEVELOPER_USER} >/dev/null 2>&1; then useradd -m -u ${SANDBOX_DEVELOPER_UID} -g ${SANDBOX_DEVELOPER_USER} -s /bin/bash ${SANDBOX_DEVELOPER_USER}; fi; \\
-  mkdir -p ${SANDBOX_WORKSPACE_ROOT} ${SANDBOX_DEVELOPER_HOME}/.vscode-server/extensions; \\
-  chown -R ${SANDBOX_DEVELOPER_USER}:${SANDBOX_DEVELOPER_USER} ${SANDBOX_WORKSPACE_ROOT} ${SANDBOX_DEVELOPER_HOME}
-USER ${SANDBOX_DEVELOPER_USER}
-RUN curl -fsSL ${CLAUDE_INSTALL_SCRIPT_URL} | bash
-ENV PATH="${SANDBOX_DEVELOPER_HOME}/.local/bin:\${PATH}"
-WORKDIR ${SANDBOX_WORKSPACE_ROOT}
-CMD ["sleep", "infinity"]
-`;
+const VPN_DOCKERFILE = renderDockerfileTemplate(vpnDockerfileTemplate);
+const AGENT_DOCKERFILE = renderDockerfileTemplate(agentDockerfileTemplate);
 
 const VPN_ENTRYPOINT_COMMAND = `iptables -P INPUT ACCEPT
 iptables -P FORWARD DROP
@@ -169,6 +163,16 @@ function expandHome(filePath: string): string {
 
 function quoteYaml(value: string): string {
   return JSON.stringify(value);
+}
+
+export function renderDockerfileTemplate(template: string): string {
+  return template.replace(/\{\{([A-Z_]+)\}\}/g, replaceDockerfilePlaceholder);
+}
+
+function replaceDockerfilePlaceholder(placeholder: string, key: string): string {
+  const value = DOCKERFILE_TEMPLATE_VALUES[key];
+  if (value === undefined) throw new Error(`unknown sandbox Dockerfile placeholder ${placeholder}`);
+  return value;
 }
 
 function readString(record: Record<string, unknown>, key: string): string | null {
@@ -282,6 +286,11 @@ export function parseSecretMountSpec(spec: string): SecretMount {
 
 export function resolveSecretMounts(secretNames: string[] = [], mountSpecs: string[] = []): SecretMount[] {
   return [...secretNames.map(namedSecretMount), ...mountSpecs.map(parseSecretMountSpec)];
+}
+
+export function resolvePresetSecretNames(preset: SandboxPresetName | undefined, secretNames: string[] = []): string[] {
+  if (preset === undefined || secretNames.includes(preset)) return secretNames;
+  return [preset, ...secretNames];
 }
 
 function volumeArg(source: string, target: string, mode: string): string {
@@ -486,6 +495,7 @@ async function writeSandboxAssets(config: Config): Promise<SandboxAssets> {
       domains: config.domains,
       tun: { interfaceName: SANDBOX_TUN_INTERFACE_NAME, address: SANDBOX_TUN_ADDRESS },
       dnsServer: config.dns.servers[0] ?? SANDBOX_PRIMARY_DNS_SERVER,
+      routingMode: config.routing.mode,
     }),
     SANDBOX_SING_BOX_FILE,
   );
@@ -593,12 +603,13 @@ function secretSummary(secret: SecretMount): string {
 async function prepareSandbox(options: {
   config: Config;
   workspace: string;
+  preset?: SandboxPresetName;
   secrets?: string[];
   mountSecrets?: string[];
   exec: Exec;
 }): Promise<{ assets: SandboxAssets; workspace: WorkspaceMount; secrets: SecretMount[] }> {
   const workspace = resolveWorkspaceMount(options.workspace);
-  const secrets = resolveSecretMounts(options.secrets, options.mountSecrets);
+  const secrets = resolveSecretMounts(resolvePresetSecretNames(options.preset, options.secrets), options.mountSecrets);
   await ensureMountSources(workspace, secrets);
   await ensureDocker(options.exec);
   const assets = await writeSandboxAssets(options.config);
@@ -616,6 +627,7 @@ export async function runSandboxRun(options: SandboxRunOptions): Promise<number>
   const prepared = await prepareSandbox({
     config: options.config,
     workspace: options.workspace,
+    preset,
     secrets: options.secrets,
     mountSecrets: options.mountSecrets,
     exec,
@@ -676,6 +688,7 @@ export async function runSandboxCode(options: SandboxCodeOptions): Promise<numbe
   const prepared = await prepareSandbox({
     config: options.config,
     workspace: options.workspace,
+    preset,
     secrets: options.secrets,
     mountSecrets: options.mountSecrets,
     exec,
