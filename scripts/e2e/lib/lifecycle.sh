@@ -61,7 +61,7 @@ vpnctl_uninstall() {
 }
 
 # --- synthetic-old build (update-race regression fixture) ---------------------
-RELEASE_BINARIES=(vpnctl vpnctl-monitor vpnctl-tunnel)
+RELEASE_BINARIES=(vpnctl vpnctl-monitor vpnctl-tunnel vpnctl-tray)
 
 # build_synthetic_old <version> <repo_root>
 # Compiles the current checkout into dist/ but with package.json pinned to an
@@ -82,7 +82,7 @@ build_synthetic_old() {
 }
 
 # install_binaries_to <dir> <from_dir>
-# Copies the three release binaries into an install dir and marks them
+# Copies the release binary aliases into an install dir and marks them
 # executable, mimicking what install.sh / a tarball extraction would leave.
 install_binaries_to() {
   local dir="$1"
@@ -95,5 +95,6 @@ install_binaries_to() {
   cp -p "$from_dir/vpnctl" "$dir/vpnctl"
   ln "$dir/vpnctl" "$dir/vpnctl-monitor"
   ln "$dir/vpnctl" "$dir/vpnctl-tunnel"
-  chmod +x "$dir/vpnctl" "$dir/vpnctl-monitor" "$dir/vpnctl-tunnel"
+  ln "$dir/vpnctl" "$dir/vpnctl-tray"
+  chmod +x "$dir/vpnctl" "$dir/vpnctl-monitor" "$dir/vpnctl-tunnel" "$dir/vpnctl-tray"
 }
