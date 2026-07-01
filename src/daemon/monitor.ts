@@ -8,11 +8,11 @@ import { resolveAll, writeTable } from "../core/dns-refresh";
 import { reconcileTunnelState } from "../core/enforcement";
 import type { Exec } from "../core/exec";
 import { realExec } from "../core/exec";
-import { tunnelStateChanged, type TunnelState } from "../core/network";
-import { CACHE_V4_FILE, CACHE_V6_FILE, CONFIG_FILE, PF_TABLE_V4, PF_TABLE_V6, YIELD_MODE_FILE } from "../core/paths";
+import { isSingBoxRunning, tunnelStateChanged, type TunnelState } from "../core/network";
+import { CACHE_V4_FILE, CACHE_V6_FILE, CONFIG_FILE, PF_TABLE_V4, PF_TABLE_V6, TUNNEL_PID_FILE, YIELD_MODE_FILE } from "../core/paths";
 import { writeStateFile } from "../core/state-file";
+import { resolveReconcileIntervalMs } from "./reconcile-interval";
 
-const SINKHOLE_TICK_MS = 5_000;
 const REFRESH_TICK_MS = 10 * 60 * 1000;
 const DESIRED_POLL_MS = 1_000;
 
@@ -105,6 +105,7 @@ async function main(): Promise<void> {
       // Starting is not — the tunnel still has to connect — so let the reconcile
       // confirm "up" before the tray goes green.
       if (action === "stop") await writeStateFile(false, null);
+      if (action === "start") await writeStateFile(false, null, Date.now(), true);
     } catch (error) {
       log(`ERROR desired-tunnel enforce: ${(error as Error).message}`);
     }
@@ -114,7 +115,8 @@ async function main(): Promise<void> {
     await enforceTunnel();
     try {
       tunnelState = await tickSinkholeAndAnchor(exec, config, singboxConfigPath, tunnelState);
-      await writeStateFile(tunnelState.tunnelUp, tunnelState.trustedIface);
+      const tunnelStarting = !tunnelState.tunnelUp && (await isSingBoxRunning(exec, TUNNEL_PID_FILE).catch(() => false));
+      await writeStateFile(tunnelState.tunnelUp, tunnelState.trustedIface, Date.now(), tunnelStarting);
     } catch (error) {
       log(`ERROR sinkhole/anchor tick: ${(error as Error).message}`);
     }
@@ -159,9 +161,6 @@ async function main(): Promise<void> {
   await runTickSerialized();
   await runRefresh();
 
-  // Poll the small desired-state file every second: fs.watch alone is unreliable
-  // on macOS (FSEvents coalescing delays it by seconds), which made tray toggles
-  // feel laggy. The heavy sinkhole reconcile still runs only every SINKHOLE_TICK_MS.
   let lastDesired = await readDesiredTunnel(desiredTunnelPath);
   let sinceReconcileMs = 0;
   let sinceRefreshMs = 0;
@@ -182,7 +181,7 @@ async function main(): Promise<void> {
       await runTickSerialized();
     } else if (desired !== lastDesired) {
       lastDesired = desired;
-    } else if (sinceReconcileMs >= SINKHOLE_TICK_MS) {
+    } else if (sinceReconcileMs >= resolveReconcileIntervalMs(desired, tunnelState)) {
       sinceReconcileMs = 0;
       await runTickSerialized();
     }

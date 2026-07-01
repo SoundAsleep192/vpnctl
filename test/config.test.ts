@@ -2,7 +2,7 @@ import { describe, expect, test } from "bun:test";
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { loadConfig, saveConfig, type Config } from "../src/core/config";
+import { detectSystemLanguage, loadConfig, parseRoutingMode, parseUiLanguage, saveConfig, type Config } from "../src/core/config";
 import {
   DEFAULT_AUDIT_PROCESS_NAME_PATTERNS,
   DEFAULT_DNS_SERVERS,
@@ -31,6 +31,8 @@ const fullConfig: Config = {
   outbound: sampleOutbound,
   domains: ["anthropic.com", "claude.ai"],
   dns: { servers: ["1.1.1.1", "8.8.8.8"] },
+  routing: { mode: "split" },
+  ui: { language: "en" },
   audit: { processNamePatterns: ["Code", "Cursor"] },
   exec: { blockedCountries: ["RU"] },
 };
@@ -70,6 +72,8 @@ describe("loadConfig", () => {
         outbound: sampleOutbound,
         domains: ["anthropic.com"],
         dns: { servers: DEFAULT_DNS_SERVERS },
+        routing: { mode: "split" },
+        ui: { language: detectSystemLanguage() },
         audit: { processNamePatterns: DEFAULT_AUDIT_PROCESS_NAME_PATTERNS },
         exec: { blockedCountries: [] },
       });
@@ -100,6 +104,39 @@ describe("loadConfig", () => {
       await expect(loadConfig(filePath)).rejects.toThrow(/outbound/);
       await expect(loadConfig(filePath)).rejects.toThrow(/domains/);
     });
+  });
+});
+
+describe("parseUiLanguage", () => {
+  test("accepts supported UI languages", () => {
+    expect(parseUiLanguage("en")).toBe("en");
+    expect(parseUiLanguage("ru")).toBe("ru");
+  });
+
+  test("rejects unknown UI languages", () => {
+    expect(() => parseUiLanguage("de")).toThrow(/en, ru/);
+  });
+});
+
+describe("detectSystemLanguage", () => {
+  test("detects Russian from locale variables", () => {
+    expect(detectSystemLanguage({ LANG: "ru_RU.UTF-8" })).toBe("ru");
+  });
+
+  test("defaults to English without a Russian locale", () => {
+    expect(detectSystemLanguage({ LANG: "en_US.UTF-8" })).toBe("en");
+    expect(detectSystemLanguage({})).toBe("en");
+  });
+});
+
+describe("parseRoutingMode", () => {
+  test("accepts supported routing modes", () => {
+    expect(parseRoutingMode("full")).toBe("full");
+    expect(parseRoutingMode("split")).toBe("split");
+  });
+
+  test("rejects unknown routing modes", () => {
+    expect(() => parseRoutingMode("proxy-all")).toThrow(/full, split/);
   });
 });
 

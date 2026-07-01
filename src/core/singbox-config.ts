@@ -1,5 +1,6 @@
 import { mkdir } from "node:fs/promises";
 import path from "node:path";
+import type { RoutingMode } from "./config";
 import type { RealityOutbound } from "./vless";
 
 interface DnsServer {
@@ -78,6 +79,7 @@ export interface BuildSingBoxConfigOptions {
   domains: string[];
   tun: { interfaceName: string; address: string };
   dnsServer?: string;
+  routingMode: RoutingMode;
 }
 
 export function deriveDomainSuffixes(domains: string[]): string[] {
@@ -105,6 +107,7 @@ export function buildSingBoxConfig(opts: BuildSingBoxConfigOptions): SingBoxConf
   const dnsServer = opts.dnsServer ?? "1.1.1.1";
   const domainSuffixes = deriveDomainSuffixes(opts.domains);
   const proxyOutbound: RealityOutbound = { ...opts.outbound, tag: "proxy" };
+  const fullTunnel = opts.routingMode === "full";
 
   return {
     log: { level: "info", timestamp: true },
@@ -115,7 +118,7 @@ export function buildSingBoxConfig(opts: BuildSingBoxConfigOptions): SingBoxConf
       ],
       rules: [{ domain_suffix: domainSuffixes, server: "proxy-dns" }],
       strategy: "ipv4_only",
-      final: "proxy-dns",
+      final: fullTunnel ? "proxy-dns" : "local-dns",
     },
     inbounds: [
       {
@@ -138,7 +141,7 @@ export function buildSingBoxConfig(opts: BuildSingBoxConfigOptions): SingBoxConf
         { domain_suffix: domainSuffixes, outbound: "proxy" },
         { ip_is_private: true, outbound: "direct" },
       ],
-      final: "proxy",
+      final: fullTunnel ? "proxy" : "direct",
       auto_detect_interface: true,
       default_domain_resolver: { server: "local-dns" },
     },

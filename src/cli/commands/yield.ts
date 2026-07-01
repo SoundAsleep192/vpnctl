@@ -22,7 +22,7 @@ export async function runYield(options: YieldOptions = {}): Promise<void> {
 
   console.log(
     "Yield mode active: pf killswitch suspended.\n" +
-      "AI tool traffic can flow through your other VPN (unprotected by vpnctl's tunnel).\n" +
+      "Protected traffic can flow through your other VPN (unprotected by vpnctl's tunnel).\n" +
       "Run `sudo vpnctl up` to restore full killswitch protection.",
   );
 }

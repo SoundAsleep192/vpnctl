@@ -23,6 +23,7 @@ export const sampleConfig: SingBoxConfig = {
       {
         domain_suffix: [
           "anthropic.com",
+          "claude.com",
           "claude.ai",
           "cursor.com",
           "cursor.sh",
@@ -101,6 +102,7 @@ export const sampleConfig: SingBoxConfig = {
       {
         domain_suffix: [
           "anthropic.com",
+          "claude.com",
           "claude.ai",
           "cursor.com",
           "cursor.sh",

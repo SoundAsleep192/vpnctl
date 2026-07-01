@@ -4,7 +4,7 @@ import { realExec } from "../../core/exec";
 import { installDaemon, renderPlist, uninstallDaemon, type PlistOptions } from "../../core/launchd";
 import { LAUNCHD_LABEL_TRAY, TRAY_LOG_FILE, TRAY_PLIST_FILE } from "../../core/paths";
 import { isCompiledBinary } from "../../core/runtime";
-import { resolveDaemonBinaryPath } from "./install";
+import { resolveDaemonBinaryPath } from "../daemon-binary";
 
 export function buildTrayPlist(invocation: string[]): PlistOptions {
   return {
@@ -18,8 +18,11 @@ export function buildTrayPlist(invocation: string[]): PlistOptions {
   };
 }
 
-function trayAgentDomain(): `gui/${string}` {
-  const uid = String(process.getuid?.() ?? 0);
+export function resolveTrayAgentDomain(
+  currentUid: number = process.getuid?.() ?? 0,
+  sudoUid: string | undefined = Bun.env.SUDO_UID,
+): `gui/${string}` {
+  const uid = currentUid === 0 ? (sudoUid ?? String(currentUid)) : String(currentUid);
   return `gui/${uid}`;
 }
 
@@ -52,12 +55,12 @@ export async function runTrayInstall(options: TrayOptions = {}): Promise<void> {
   }
 
   const invocation = await trayInvocation();
-  await installDaemon(exec, LAUNCHD_LABEL_TRAY, TRAY_PLIST_FILE, renderPlist(buildTrayPlist(invocation)), trayAgentDomain());
+  await installDaemon(exec, LAUNCHD_LABEL_TRAY, TRAY_PLIST_FILE, renderPlist(buildTrayPlist(invocation)), resolveTrayAgentDomain());
   console.log(`Installed ${TRAY_PLIST_FILE} — the menu-bar icon now reflects vpnctl state.`);
 }
 
 export async function runTrayUninstall(options: TrayOptions = {}): Promise<void> {
   const exec = options.exec ?? realExec;
-  await uninstallDaemon(exec, LAUNCHD_LABEL_TRAY, TRAY_PLIST_FILE, trayAgentDomain());
+  await uninstallDaemon(exec, LAUNCHD_LABEL_TRAY, TRAY_PLIST_FILE, resolveTrayAgentDomain());
   console.log(`Removed ${TRAY_PLIST_FILE}.`);
 }

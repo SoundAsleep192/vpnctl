@@ -13,13 +13,6 @@ function pgrepExec(exitCodes: number[]): { exec: Exec; getCalls: () => number } 
 }
 
 describe("waitForMonitorStopped", () => {
-  /**
-   * Дано:
-   * - pgrep finds the monitor twice (still alive), then reports it gone.
-   *
-   * Ожидается:
-   * - polls until pgrep returns non-zero (gone), then stops.
-   */
   test("polls until pgrep reports the monitor process is gone", async () => {
     const { exec, getCalls } = pgrepExec([0, 0, 1]);
     await waitForMonitorStopped(exec, () => Promise.resolve());

@@ -1,7 +1,10 @@
 api.anthropic.com
+api.claude.com
 console.anthropic.com
 claude.ai
+claude.com
 console.claude.ai
+platform.claude.com
 statsig.anthropic.com
 accounts.anthropic.com
 log.anthropic.com

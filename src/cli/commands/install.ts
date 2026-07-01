@@ -1,8 +1,10 @@
 import { mkdir } from "node:fs/promises";
 import path from "node:path";
-import { loadConfig } from "../../core/config";
+import { resolveDaemonBinaryPath } from "../daemon-binary";
+import { loadConfig, parseRoutingMode, saveConfig } from "../../core/config";
 import type { Exec } from "../../core/exec";
 import { realExec } from "../../core/exec";
+import { notificationUser, sendDesktopNotification } from "../../core/notifications";
 import { installDaemon, renderPlist, type PlistOptions } from "../../core/launchd";
 import {
   CONFIG_FILE,
@@ -22,8 +24,10 @@ import { applyPfConfPatch } from "../../core/pf-conf-patch";
 import { isCompiledBinary } from "../../core/runtime";
 import { buildSingBoxConfig, writeSingBoxConfig } from "../../core/singbox-config";
 import { requireRoot } from "../root";
+import { runTrayInstall } from "./tray";
 
 const SING_BOX_CANDIDATE_PATHS = ["/opt/homebrew/bin/sing-box", "/usr/local/bin/sing-box"];
+const SUDO_BIN = "/usr/bin/sudo";
 
 export async function resolveSingBoxPath(
   exists: (filePath: string) => Promise<boolean> = (filePath) => Bun.file(filePath).exists(),
@@ -33,17 +37,6 @@ export async function resolveSingBoxPath(
   }
   throw new Error(
     `sing-box binary not found (looked in ${SING_BOX_CANDIDATE_PATHS.join(", ")}) — install it first, e.g. \`brew install sing-box\``,
-  );
-}
-
-export async function resolveDaemonBinaryPath(
-  binaryName: string,
-  exists: (filePath: string) => Promise<boolean> = (filePath) => Bun.file(filePath).exists(),
-): Promise<string> {
-  const candidate = path.join(path.dirname(process.execPath), binaryName);
-  if (await exists(candidate)) return candidate;
-  throw new Error(
-    `${binaryName} not found next to ${process.execPath} — reinstall vpnctl (e.g. \`brew reinstall vpnctl\`) so the daemon binaries are present alongside it`,
   );
 }
 
@@ -73,19 +66,28 @@ export function buildTunnelPlist(invocation: string[], singBoxPath: string, sing
 
 export interface InstallOptions {
   exec?: Exec;
+  routingMode?: string;
 }
 
 export async function runInstall(options: InstallOptions = {}): Promise<void> {
+  const routingMode = options.routingMode === undefined ? undefined : parseRoutingMode(options.routingMode);
+
   requireRoot();
 
   const exec = options.exec ?? realExec;
-  const config = await loadConfig();
+  const loadedConfig = await loadConfig();
+  const config = routingMode === undefined ? loadedConfig : { ...loadedConfig, routing: { mode: routingMode } };
+
+  if (routingMode !== undefined) {
+    await saveConfig(config);
+  }
 
   const singboxConfig = buildSingBoxConfig({
     outbound: config.outbound,
     domains: config.domains,
     tun: config.tunnel,
     dnsServer: config.dns.servers[0],
+    routingMode: config.routing.mode,
   });
   await writeSingBoxConfig(singboxConfig, GENERATED_SINGBOX_CONFIG);
 
@@ -130,5 +132,32 @@ export async function runInstall(options: InstallOptions = {}): Promise<void> {
     "system",
   );
 
-  console.log("Install complete. Run `sudo vpnctl status` to check state.");
+  console.log("Installing menu-bar icon...");
+  await installTrayForLoginUser(exec);
+
+  await sendDesktopNotification(
+    exec,
+    { title: "vpnctl installed", body: "Menu-bar icon and protection daemons are installed." },
+    { user: notificationUser() },
+  );
+
+  console.log("Install complete. Run `vpnctl` to check state.");
+}
+
+function buildSelfInvocation(args: string[]): string[] {
+  if (isCompiledBinary()) return [process.execPath, ...args];
+  return [process.execPath, process.argv[1] ?? "bin/vpnctl.ts", ...args];
+}
+
+async function installTrayForLoginUser(exec: Exec): Promise<void> {
+  const sudoUser = Bun.env.SUDO_USER;
+  if (process.getuid?.() === 0 && sudoUser !== undefined && sudoUser !== "root") {
+    const result = await exec(SUDO_BIN, ["-u", sudoUser, ...buildSelfInvocation(["tray", "install"])]);
+    if (result.stdout.length > 0) console.log(result.stdout.trimEnd());
+    if (result.stderr.length > 0) console.error(result.stderr.trimEnd());
+    if (result.exitCode !== 0) throw new Error(`failed to install menu-bar icon: ${result.stderr.trim() || result.stdout.trim()}`);
+    return;
+  }
+
+  await runTrayInstall({ exec });
 }

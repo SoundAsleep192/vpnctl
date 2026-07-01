@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import path from "node:path";
-import { buildMonitorPlist, buildTunnelPlist, resolveDaemonBinaryPath, resolveSingBoxPath } from "../src/cli/commands/install";
+import { resolveDaemonBinaryPath } from "../src/cli/daemon-binary";
+import { buildMonitorPlist, buildTunnelPlist, resolveSingBoxPath } from "../src/cli/commands/install";
 import {
   CONFIG_FILE,
   GENERATED_SINGBOX_CONFIG,

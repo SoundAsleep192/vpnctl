@@ -124,11 +124,11 @@ export function formatStatus(status: StatusResult): string {
       lines.push(`${iface.name}: ${iface.inet}`);
     }
     if (status.vpnRoutingConflict !== null) {
-      lines.push(`WARNING: default route is through ${status.vpnRoutingConflict} — AI tool traffic may not be protected`);
+      lines.push(`WARNING: default route is through ${status.vpnRoutingConflict} — protected traffic may not be routed as expected`);
     }
     for (const dns of status.vpnDnsConflicts) {
       lines.push(
-        `WARNING: ${dns.iface} is pushing DNS servers: ${dns.servers.join(", ")} — apps may resolve AI domain IPs not covered by vpnctl's pf tables`,
+        `WARNING: ${dns.iface} is pushing DNS servers: ${dns.servers.join(", ")} — apps may resolve protected domain IPs not covered by vpnctl's pf tables`,
       );
     }
   }
