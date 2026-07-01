@@ -64,6 +64,16 @@ sudo HOME="$HOME" "$(command -v vpnctl)" install
 
 Keeping `HOME` explicit prevents root from looking under `/var/root/.config/vpnctl`.
 
+For a one-command offline local check that builds, signs, smoke-tests, reinstalls,
+and then prints manual tray/dashboard checks:
+
+```sh
+./scripts/offline-local-test.sh
+```
+
+The offline script refuses to run if cached dependencies are missing, instead of
+fetching anything from the network.
+
 ## Tray recovery
 
 ```sh

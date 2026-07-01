@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { chmod, mkdir, mkdtemp, rm, stat, writeFile } from "node:fs/promises";
+import { chmod, link, mkdir, mkdtemp, rm, stat, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 
@@ -35,9 +35,11 @@ async function writeStubBinary(dir: string, name: string, contents: string): Pro
 async function buildFixtureTarball(dir: string): Promise<string> {
   const sourceDir = path.join(dir, "fixture-src");
   await mkdir(sourceDir);
-  for (const name of RELEASE_BINARIES) {
-    await writeFile(path.join(sourceDir, name), `#!/bin/sh\necho ${name}\n`);
-    await chmod(path.join(sourceDir, name), 0o755);
+  const sourceBinary = path.join(sourceDir, "vpnctl");
+  await writeFile(sourceBinary, "#!/bin/sh\necho vpnctl\n");
+  await chmod(sourceBinary, 0o755);
+  for (const name of RELEASE_BINARIES.slice(1)) {
+    await link(sourceBinary, path.join(sourceDir, name));
   }
 
   const tarballPath = path.join(dir, "fixture.tar.gz");
@@ -97,16 +99,19 @@ async function runInstallScript(options: RunInstallOptions = {}): Promise<RunIns
 }
 
 describe("scripts/install.sh", () => {
-  test("downloads the matching release asset and installs all binaries as executables", async () => {
+  test("downloads the matching release asset and installs all binaries as executable hardlinks", async () => {
     const { exitCode, stdout, installDir, cleanup } = await runInstallScript();
     try {
       expect(exitCode).toBe(0);
       expect(stdout).toContain(`Installed vpnctl, vpnctl-monitor, vpnctl-tunnel, vpnctl-tray to ${installDir}`);
 
+      const installedBinaryInodes: number[] = [];
       for (const name of RELEASE_BINARIES) {
         const binaryStat = await stat(path.join(installDir, name));
         expect(binaryStat.mode & 0o111).not.toBe(0);
+        installedBinaryInodes.push(binaryStat.ino);
       }
+      expect(new Set(installedBinaryInodes).size).toBe(1);
     } finally {
       await cleanup();
     }

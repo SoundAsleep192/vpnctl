@@ -138,9 +138,11 @@ ssh_vm 'bash -lc "
   cd ~/vpnctl
   bun install --frozen-lockfile
   bun run build
-  bun run build:daemons
   mkdir -p \$HOME/.local/bin
-  cp dist/vpnctl dist/vpnctl-monitor dist/vpnctl-tunnel \$HOME/.local/bin/
+  rm -f \$HOME/.local/bin/vpnctl \$HOME/.local/bin/vpnctl-monitor \$HOME/.local/bin/vpnctl-tunnel
+  cp -p dist/vpnctl \$HOME/.local/bin/vpnctl
+  ln \$HOME/.local/bin/vpnctl \$HOME/.local/bin/vpnctl-monitor
+  ln \$HOME/.local/bin/vpnctl \$HOME/.local/bin/vpnctl-tunnel
   chmod +x \$HOME/.local/bin/vpnctl*
 "'
 

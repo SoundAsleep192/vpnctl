@@ -27,6 +27,10 @@ if ! command -v bun >/dev/null 2>&1; then
 fi
 
 if [[ ! -d node_modules/systray2/traybin ]]; then
+  if [[ "${VPNCTL_REINSTALL_OFFLINE:-}" == "1" ]]; then
+    printf 'node_modules/systray2/traybin missing; offline reinstall cannot fetch dependencies. Run bun install while online first.\n' >&2
+    exit 2
+  fi
   bun install --frozen-lockfile
 fi
 
@@ -51,7 +55,6 @@ printf 'Reinstalling vpnctl from %s into %s\n' "$repo_dir" "$install_dir"
 remove_path dist/traybin
 
 bun run build
-bun run build:daemons
 
 remove_path dist/traybin
 cp -R node_modules/systray2/traybin dist/traybin
@@ -59,7 +62,10 @@ cp -R node_modules/systray2/traybin dist/traybin
 install_with_user_permissions() {
   mkdir -p "$install_dir"
   remove_installed_artifacts
-  cp dist/vpnctl dist/vpnctl-monitor dist/vpnctl-tunnel dist/vpnctl-tray "$install_dir/"
+  cp -p dist/vpnctl "$install_dir/vpnctl"
+  ln "$install_dir/vpnctl" "$install_dir/vpnctl-monitor"
+  ln "$install_dir/vpnctl" "$install_dir/vpnctl-tunnel"
+  ln "$install_dir/vpnctl" "$install_dir/vpnctl-tray"
   cp -R dist/traybin "$install_dir/"
   chmod +x "$install_dir/vpnctl" "$install_dir/vpnctl-monitor" "$install_dir/vpnctl-tunnel" "$install_dir/vpnctl-tray"
   chmod +x "$install_dir/traybin/"*
@@ -68,7 +74,10 @@ install_with_user_permissions() {
 install_with_sudo() {
   sudo mkdir -p "$install_dir"
   remove_installed_artifacts
-  sudo cp dist/vpnctl dist/vpnctl-monitor dist/vpnctl-tunnel dist/vpnctl-tray "$install_dir/"
+  sudo cp -p dist/vpnctl "$install_dir/vpnctl"
+  sudo ln "$install_dir/vpnctl" "$install_dir/vpnctl-monitor"
+  sudo ln "$install_dir/vpnctl" "$install_dir/vpnctl-tunnel"
+  sudo ln "$install_dir/vpnctl" "$install_dir/vpnctl-tray"
   sudo cp -R dist/traybin "$install_dir/"
   sudo chmod +x "$install_dir/vpnctl" "$install_dir/vpnctl-monitor" "$install_dir/vpnctl-tunnel" "$install_dir/vpnctl-tray"
   sudo chmod +x "$install_dir/traybin/"*

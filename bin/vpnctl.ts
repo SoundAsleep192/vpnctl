@@ -1,5 +1,6 @@
 #!/usr/bin/env bun
 import { Command } from "commander";
+import path from "node:path";
 import pkg from "../package.json";
 import { runAudit } from "../src/cli/commands/audit";
 import { runCheck } from "../src/cli/commands/check";
@@ -31,8 +32,26 @@ import { runUpdate } from "../src/cli/commands/update";
 import { runWrapAdd, runWrapList, runWrapRemove } from "../src/cli/commands/wrap";
 import { runYield } from "../src/cli/commands/yield";
 import { loadConfig } from "../src/core/config";
+import { runMonitorDaemon } from "../src/daemon/monitor";
+import { runTrayDaemon } from "../src/daemon/tray";
+import { runTunnelDaemon } from "../src/daemon/tunnel";
 
 const program = new Command();
+const daemonEntrypoints: Record<string, () => Promise<void>> = {
+  "vpnctl-monitor": () => runMonitorDaemon(),
+  "vpnctl-tunnel": () => runTunnelDaemon(),
+  "vpnctl-tray": () => runTrayDaemon(),
+};
+
+async function runDaemonEntrypoint(): Promise<boolean> {
+  for (const executablePath of [process.execPath, process.argv[0] ?? ""]) {
+    const daemonEntrypoint = daemonEntrypoints[path.basename(executablePath)];
+    if (daemonEntrypoint === undefined) continue;
+    await daemonEntrypoint();
+    return true;
+  }
+  return false;
+}
 
 program.name("vpnctl").description(pkg.description).version(pkg.version);
 
@@ -336,17 +355,19 @@ program
     await runAudit({ watchSec: opts.watch, log: opts.log, installAgent: opts.installAgent, uninstallAgent: opts.uninstallAgent });
   });
 
-try {
-  if (process.argv.slice(2).length === 0) {
-    if (process.stdin.isTTY && process.stdout.isTTY) {
-      await runTui();
+if (!(await runDaemonEntrypoint())) {
+  try {
+    if (process.argv.slice(2).length === 0) {
+      if (process.stdin.isTTY && process.stdout.isTTY) {
+        await runTui();
+      } else {
+        program.outputHelp();
+      }
     } else {
-      program.outputHelp();
+      await program.parseAsync();
     }
-  } else {
-    await program.parseAsync();
+  } catch (error) {
+    console.error((error as Error).message);
+    process.exit(1);
   }
-} catch (error) {
-  console.error((error as Error).message);
-  process.exit(1);
 }

@@ -117,7 +117,7 @@ async function readStatus(): Promise<TrayStatus> {
   return classifyState(text === null ? null : parseStateFile(text), Date.now());
 }
 
-async function main(): Promise<void> {
+export async function runTrayDaemon(): Promise<void> {
   prepareTrayBinary();
 
   let currentStatus = await readStatus();
@@ -165,5 +165,5 @@ async function main(): Promise<void> {
 }
 
 if (import.meta.main) {
-  await main();
+  await runTrayDaemon();
 }

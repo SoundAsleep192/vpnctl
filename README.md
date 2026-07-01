@@ -21,8 +21,9 @@ blocked by default — not allowed through.
 curl -fsSL https://raw.githubusercontent.com/SoundAsleep192/vpnctl/master/scripts/install.sh | bash
 ```
 
-Installs `vpnctl`, `vpnctl-monitor`, `vpnctl-tunnel`, and `vpnctl-tray` to `~/.local/bin`
-(override with `VPNCTL_INSTALL_DIR`). Add that directory to your `PATH` if prompted, then:
+Installs `vpnctl` plus daemon aliases (`vpnctl-monitor`, `vpnctl-tunnel`, and
+`vpnctl-tray`) to `~/.local/bin` (override with `VPNCTL_INSTALL_DIR`). Add that
+directory to your `PATH` if prompted, then:
 
 ```sh
 brew install sing-box  # if not already installed

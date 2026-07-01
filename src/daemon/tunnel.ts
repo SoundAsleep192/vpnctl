@@ -39,8 +39,8 @@ export function deriveVpnctlConfigPath(singboxConfigPath: string): string {
   return path.join(path.dirname(singboxConfigPath), path.basename(CONFIG_FILE));
 }
 
-async function main(): Promise<void> {
-  const { singBoxPath, configPath } = parseArgs(process.argv.slice(2));
+export async function runTunnelDaemon(argv: string[] = process.argv.slice(2)): Promise<void> {
+  const { singBoxPath, configPath } = parseArgs(argv);
 
   log(`starting ${singBoxPath} run -c ${configPath}`);
 
@@ -88,5 +88,5 @@ async function main(): Promise<void> {
 }
 
 if (import.meta.main) {
-  await main();
+  await runTunnelDaemon();
 }

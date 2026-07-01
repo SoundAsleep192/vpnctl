@@ -78,7 +78,7 @@ build_synthetic_old() {
   trap "cp '$pkg_backup' '$repo_root/package.json'; rm -f '$pkg_backup'" RETURN
 
   sed -i '' "s/\"version\": \"[^\"]*\"/\"version\": \"$version\"/" "$repo_root/package.json"
-  (cd "$repo_root" && bun run build >/dev/null && bun run build:daemons >/dev/null)
+  (cd "$repo_root" && bun run build >/dev/null)
 }
 
 # install_binaries_to <dir> <from_dir>
@@ -90,7 +90,10 @@ install_binaries_to() {
   mkdir -p "$dir"
   local binary
   for binary in "${RELEASE_BINARIES[@]}"; do
-    cp "$from_dir/$binary" "$dir/$binary"
-    chmod +x "$dir/$binary"
+    rm -f "$dir/$binary"
   done
+  cp -p "$from_dir/vpnctl" "$dir/vpnctl"
+  ln "$dir/vpnctl" "$dir/vpnctl-monitor"
+  ln "$dir/vpnctl" "$dir/vpnctl-tunnel"
+  chmod +x "$dir/vpnctl" "$dir/vpnctl-monitor" "$dir/vpnctl-tunnel"
 }

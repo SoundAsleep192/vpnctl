@@ -89,4 +89,4 @@ Before reporting done:
 For broad runtime changes, also run:
 
 1. `bun run build`
-2. `bun run build:daemons`
+2. `bun run build:daemons` if you need to recreate daemon aliases without rebuilding

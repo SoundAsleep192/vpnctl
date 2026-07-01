@@ -40,9 +40,7 @@ jobs:
         run: |
           mkdir -p dist
           bun build --compile --target=bun-darwin-${{ matrix.arch }} bin/vpnctl.ts --outfile dist/vpnctl
-          bun build --compile --target=bun-darwin-${{ matrix.arch }} src/daemon/monitor.ts --outfile dist/vpnctl-monitor
-          bun build --compile --target=bun-darwin-${{ matrix.arch }} src/daemon/tunnel.ts --outfile dist/vpnctl-tunnel
-          bun build --compile --target=bun-darwin-${{ matrix.arch }} src/daemon/tray.ts --outfile dist/vpnctl-tray
+          ./scripts/link-dist-aliases.sh
       # codesign-dist.sh stages the systray Go helper (x86_64-only; runs native
       # on x64, via Rosetta 2 on arm64) into dist/traybin/ before signing.
       - run: ./scripts/codesign-dist.sh

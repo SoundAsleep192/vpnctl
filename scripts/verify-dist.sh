@@ -4,7 +4,6 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 
 bun run build
-bun run build:daemons
 
 ./scripts/codesign-dist.sh
 ./scripts/smoke-test-dist.sh

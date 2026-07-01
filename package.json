@@ -19,11 +19,8 @@
     "lint:md": "markdownlint-cli2 \"**/*.md\"",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "build": "bun build --compile bin/vpnctl.ts --outfile dist/vpnctl",
-    "build:monitor": "bun build --compile src/daemon/monitor.ts --outfile dist/vpnctl-monitor",
-    "build:tunnel": "bun build --compile src/daemon/tunnel.ts --outfile dist/vpnctl-tunnel",
-    "build:tray": "bun build --compile src/daemon/tray.ts --outfile dist/vpnctl-tray",
-    "build:daemons": "bun run build:monitor && bun run build:tunnel && bun run build:tray"
+    "build": "bun build --compile bin/vpnctl.ts --outfile dist/vpnctl && ./scripts/link-dist-aliases.sh",
+    "build:daemons": "./scripts/link-dist-aliases.sh"
   },
   "dependencies": {
     "@clack/prompts": "^0.9.1",

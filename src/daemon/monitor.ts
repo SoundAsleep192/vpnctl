@@ -71,9 +71,9 @@ export async function tickRefresh(exec: Exec, config: Config): Promise<void> {
   log(`refresh OK: v4=${v4.length} v6=${v6.length}`);
 }
 
-async function main(): Promise<void> {
+export async function runMonitorDaemon(argv: string[] = process.argv.slice(2)): Promise<void> {
   const exec = realExec;
-  const { configPath, singboxConfigPath, desiredTunnelPath } = parseArgs(process.argv.slice(2));
+  const { configPath, singboxConfigPath, desiredTunnelPath } = parseArgs(argv);
   const config = await loadConfig(configPath);
 
   let stopping = false;
@@ -197,5 +197,5 @@ async function main(): Promise<void> {
 }
 
 if (import.meta.main) {
-  await main();
+  await runMonitorDaemon();
 }
