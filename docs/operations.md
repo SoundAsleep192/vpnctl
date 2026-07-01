@@ -46,6 +46,9 @@ sinkhole state. Run it after domain edits when you need changes applied immediat
 
 ## Reinstall local build
 
+Run these scripts as your normal user. They build inside the repo and ask for
+`sudo` only when installing protected system services.
+
 ```sh
 ./scripts/reinstall-local.sh
 ```
@@ -72,7 +75,8 @@ and then prints manual tray/dashboard checks:
 ```
 
 The offline script refuses to run if cached dependencies are missing, instead of
-fetching anything from the network.
+fetching anything from the network. If an earlier sudo run left root-owned build
+artifacts behind, remove them once with `sudo rm -rf dist/traybin`.
 
 ## Tray recovery
 

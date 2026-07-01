@@ -31,8 +31,11 @@ Use the local reinstall script when iterating on compiled binaries:
 ./scripts/reinstall-local.sh
 ```
 
-It builds the compiled CLI, recreates daemon aliases, copies release assets into the
-existing install directory, and redeploys daemons through `sudo vpnctl install`.
+It builds and signs the compiled CLI, recreates daemon aliases, copies release assets
+into the existing install directory, and redeploys daemons through `sudo vpnctl
+install`.
+Run it as your normal user, not with `sudo`; the script asks for privilege only when
+needed.
 
 To only replace binaries and skip daemon redeploy:
 
@@ -53,7 +56,9 @@ Use this when you want a release-shaped local build without downloading anything
 
 It runs focused gates, builds/signs the compiled binary, smoke-tests `dist/`,
 reinstalls the local build, and prints the manual dashboard/tray checklist. Set
-`VPNCTL_OFFLINE_SKIP_TESTS=1` when you only want the reinstall path.
+`VPNCTL_OFFLINE_SKIP_TESTS=1` when you only want the reinstall path. If an earlier
+sudo run left root-owned build artifacts behind, remove them once with
+`sudo rm -rf dist/traybin`.
 
 ## Host protection setup
 

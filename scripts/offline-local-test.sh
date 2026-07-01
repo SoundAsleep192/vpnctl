@@ -4,6 +4,12 @@ set -euo pipefail
 repo_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$repo_dir"
 
+if [[ "$(id -u)" -eq 0 ]]; then
+  printf 'Do not run this script with sudo. It builds inside the repo and asks for sudo only during reinstall.\n' >&2
+  printf 'Run: ./scripts/offline-local-test.sh\n' >&2
+  exit 2
+fi
+
 if [[ "$(uname -s)" != "Darwin" ]]; then
   printf 'offline local test only supports macOS.\n' >&2
   exit 2
@@ -16,6 +22,12 @@ fi
 
 if [[ ! -d node_modules/systray2/traybin ]]; then
   printf 'node_modules/systray2/traybin missing; offline test cannot fetch dependencies. Run bun install while online first.\n' >&2
+  exit 2
+fi
+
+if [[ -e dist/traybin && ! -w dist/traybin ]]; then
+  printf 'dist/traybin is not writable, probably from an earlier sudo run.\n' >&2
+  printf 'Fix once: sudo rm -rf %s/dist/traybin\n' "$repo_dir" >&2
   exit 2
 fi
 

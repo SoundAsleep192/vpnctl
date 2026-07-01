@@ -11,7 +11,12 @@ import { isCompiledBinary } from "../core/runtime";
 import { writeDesiredTunnel } from "../core/desired-tunnel";
 import { LOG_DIR, STATE_FILE } from "../core/paths";
 import { classifyState, parseStateFile, type TrayStatus } from "../core/state-file";
-import { shouldSendStatusNotification, statusNotification } from "../core/status-notification";
+import {
+  scheduleStatusNotification,
+  shouldSendStatusNotification,
+  statusNotification,
+  type StatusNotificationTarget,
+} from "../core/status-notification";
 
 // `bun build --compile` double-wraps systray2's CJS default export: the real
 // constructor sits at `.default.default` in the shipped binary but at `.default`
@@ -75,7 +80,7 @@ function buildMenu(status: TrayStatus) {
   };
 }
 
-async function notifyStatus(status: TrayStatus): Promise<void> {
+async function notifyStatus(status: StatusNotificationTarget): Promise<void> {
   const config = await loadConfig().catch(() => null);
   const notification = statusNotification(status, config?.ui.language ?? detectSystemLanguage());
   if (notification === null) return;
@@ -121,8 +126,33 @@ export async function runTrayDaemon(): Promise<void> {
   prepareTrayBinary();
 
   let currentStatus = await readStatus();
+  let statusNotificationGeneration = 0;
+  let statusNotificationTimer: ReturnType<typeof setTimeout> | null = null;
   const systray = new SysTray({ menu: buildMenu(currentStatus), debug: false, copyDir: false });
   await systray.ready();
+
+  const queueStatusNotification = (status: TrayStatus): void => {
+    statusNotificationGeneration += 1;
+    if (statusNotificationTimer !== null) {
+      clearTimeout(statusNotificationTimer);
+      statusNotificationTimer = null;
+    }
+
+    const scheduledNotification = scheduleStatusNotification(status);
+    if (scheduledNotification === null) return;
+
+    const generation = statusNotificationGeneration;
+    if (scheduledNotification.delayMs === 0) {
+      void notifyStatus(scheduledNotification.status);
+      return;
+    }
+
+    statusNotificationTimer = setTimeout(() => {
+      if (generation !== statusNotificationGeneration) return;
+      statusNotificationTimer = null;
+      void notifyStatus(scheduledNotification.status);
+    }, scheduledNotification.delayMs);
+  };
 
   await systray.onClick((action) => {
     // Only "Open logs" has a stable title; the toggle's title changes with state
@@ -142,7 +172,7 @@ export async function runTrayDaemon(): Promise<void> {
       // refreshes the toggle title in place.
       await systray.sendAction({ type: "update-menu", menu: buildMenu(currentStatus) });
       await systray.sendAction({ type: "update-item", item: tunnelToggleItem(currentStatus) });
-      await notifyStatus(currentStatus);
+      queueStatusNotification(currentStatus);
     }
   };
 
@@ -160,6 +190,7 @@ export async function runTrayDaemon(): Promise<void> {
       await applyStatus();
     }
   } finally {
+    if (statusNotificationTimer !== null) clearTimeout(statusNotificationTimer);
     watcher.close();
   }
 }

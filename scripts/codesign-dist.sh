@@ -21,7 +21,10 @@ chmod +x dist/traybin/tray_darwin_release
 SIGN_BINARIES=(dist/vpnctl dist/traybin/tray_darwin_release)
 VERIFY_BINARIES=(dist/vpnctl dist/vpnctl-monitor dist/vpnctl-tunnel dist/vpnctl-tray dist/traybin/tray_darwin_release)
 
-codesign --force --sign - "${SIGN_BINARIES[@]}"
+codesign_output="$(codesign --force --sign - "${SIGN_BINARIES[@]}" 2>&1)" || {
+  printf '%s\n' "$codesign_output" >&2
+  exit 1
+}
 ./scripts/link-dist-aliases.sh
 
 for binary in "${VERIFY_BINARIES[@]}"; do

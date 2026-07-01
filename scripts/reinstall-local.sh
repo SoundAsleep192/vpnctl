@@ -4,6 +4,12 @@ set -euo pipefail
 repo_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$repo_dir"
 
+if [[ "$(id -u)" -eq 0 ]]; then
+  printf 'Do not run this script with sudo. It builds inside the repo and asks for sudo only during daemon install.\n' >&2
+  printf 'Run: ./scripts/reinstall-local.sh\n' >&2
+  exit 2
+fi
+
 install_dir="${VPNCTL_INSTALL_DIR:-}"
 if [[ -z "$install_dir" ]]; then
   if command -v vpnctl >/dev/null 2>&1; then
@@ -55,9 +61,7 @@ printf 'Reinstalling vpnctl from %s into %s\n' "$repo_dir" "$install_dir"
 remove_path dist/traybin
 
 bun run build
-
-remove_path dist/traybin
-cp -R node_modules/systray2/traybin dist/traybin
+./scripts/codesign-dist.sh
 
 install_with_user_permissions() {
   mkdir -p "$install_dir"
