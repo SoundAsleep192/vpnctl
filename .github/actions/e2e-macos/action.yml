@@ -19,6 +19,7 @@ runs:
       shell: bash
       run: |
         bun run build
+        ./scripts/codesign-dist.sh
     - name: Install built binaries onto PATH
       shell: bash
       run: |
