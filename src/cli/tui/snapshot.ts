@@ -10,7 +10,6 @@ import {
   STATE_FILE,
   TUNNEL_PID_FILE,
   UPDATE_CHECK_CACHE_FILE,
-  YIELD_MODE_FILE,
 } from "../../core/paths";
 import { readSingBoxConfig } from "../../core/singbox-config";
 import { classifyState, parseStateFile, type VpnState } from "../../core/state-file";
@@ -29,9 +28,6 @@ export async function buildTuiSnapshot(exec: Exec = realExec, options: BuildTuiS
   const nowMs = Date.now();
   const state = await readCurrentVpnState(exec, nowMs);
   const trayStatus = classifyState(state, nowMs);
-  const yieldMode = await Bun.file(YIELD_MODE_FILE)
-    .exists()
-    .catch(() => false);
   const workspaceStatus = await getWorkspaceStatus(exec);
   const updateAvailable =
     options.checkUpdate === false
@@ -41,7 +37,7 @@ export async function buildTuiSnapshot(exec: Exec = realExec, options: BuildTuiS
   const otherVpn = formatOtherVpnLabel(vpnConflicts);
 
   return {
-    aiDomains: formatAiDomainsState(config !== null, trayStatus, yieldMode),
+    aiDomains: formatAiDomainsState(config !== null, trayStatus),
     trafficScope: formatTrafficScope(config?.routing.mode ?? null),
     workspaces: workspaceStatus.label,
     workspaceCount: workspaceStatus.count,
@@ -50,7 +46,7 @@ export async function buildTuiSnapshot(exec: Exec = realExec, options: BuildTuiS
     dnsCount: config?.dns.servers.length ?? null,
     tunnel: formatTunnelLabel(trayStatus),
     tunnelStarting: trayStatus === "starting",
-    leakGuard: formatLeakGuard(state, trayStatus, yieldMode),
+    leakGuard: formatLeakGuard(state, trayStatus),
     otherVpn,
     otherVpnInterfaces: vpnConflicts?.otherInterfaces ?? null,
     vpnDnsConflicts: vpnConflicts?.dnsConflicts ?? null,

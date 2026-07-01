@@ -1,4 +1,4 @@
-import { mkdir, rm } from "node:fs/promises";
+import { mkdir } from "node:fs/promises";
 import { watch } from "node:fs";
 import path from "node:path";
 import type { Config } from "../core/config";
@@ -9,7 +9,7 @@ import { reconcileTunnelState } from "../core/enforcement";
 import type { Exec } from "../core/exec";
 import { realExec } from "../core/exec";
 import { isSingBoxRunning, tunnelStateChanged, type TunnelState } from "../core/network";
-import { CACHE_V4_FILE, CACHE_V6_FILE, CONFIG_FILE, PF_TABLE_V4, PF_TABLE_V6, TUNNEL_PID_FILE, YIELD_MODE_FILE } from "../core/paths";
+import { CACHE_V4_FILE, CACHE_V6_FILE, CONFIG_FILE, PF_TABLE_V4, PF_TABLE_V6, TUNNEL_PID_FILE } from "../core/paths";
 import { writeStateFile } from "../core/state-file";
 import { resolveReconcileIntervalMs } from "./reconcile-interval";
 
@@ -90,10 +90,6 @@ export async function runMonitorDaemon(argv: string[] = process.argv.slice(2)): 
   });
 
   log("monitor daemon starting");
-
-  // Yield mode must not survive a daemon restart (reboot, crash, update). Clear it
-  // at startup so the killswitch always starts fail-closed.
-  await rm(YIELD_MODE_FILE, { force: true });
 
   let tunnelState: TunnelState | null = null;
   let tunnelStartingUntilMs = 0;

@@ -12,14 +12,14 @@ host monitor state. The sandbox has its own VPN namespace and its own killswitch
 
 ## Runtime surfaces
 
-| Surface        | Owner               | Purpose                                                                 |
-| -------------- | ------------------- | ----------------------------------------------------------------------- |
-| CLI            | user/root           | Setup, install, diagnostics, domains, logs, sandbox commands            |
-| TUI            | user                | Terminal dashboard for status, config, diagnostics, workspace actions   |
-| Monitor daemon | root launchd daemon | Reconcile pf tables, sinkhole, state file, and desired tunnel state     |
-| Tunnel daemon  | root launchd daemon | Run sing-box with generated config and reconcile immediate tunnel state |
-| Tray agent     | user launchd agent  | Menu-bar indicator and unprivileged tunnel toggle                       |
-| Docker sandbox | Docker              | Protected runtime for agent commands and VS Code remote backend         |
+| Surface        | Owner               | Purpose                                                                  |
+| -------------- | ------------------- | ------------------------------------------------------------------------ |
+| CLI            | user/root           | Dashboard, diagnostics, domains, logs, tunnel controls, sandbox commands |
+| TUI            | user                | Terminal dashboard for status, config, diagnostics, workspace actions    |
+| Monitor daemon | root launchd daemon | Reconcile pf tables, sinkhole, state file, and desired tunnel state      |
+| Tunnel daemon  | root launchd daemon | Run sing-box with generated config and reconcile immediate tunnel state  |
+| Tray agent     | user launchd agent  | Menu-bar indicator and unprivileged tunnel toggle                        |
+| Docker sandbox | Docker              | Protected runtime for agent commands and VS Code remote backend          |
 
 ## State and paths
 
@@ -42,8 +42,8 @@ host monitor state. The sandbox has its own VPN namespace and its own killswitch
 
 ## Host protection flow
 
-1. `vpnctl setup` writes `config.json` and generates `sing-box.json`.
-2. `sudo vpnctl install` installs the pf anchor, patches `/etc/pf.conf`, installs root
+1. The release installer writes `config.json` and generates `sing-box.json`.
+2. The release installer installs the pf anchor, patches `/etc/pf.conf`, installs root
    LaunchDaemons, installs the tray agent, and starts protection.
 3. The tunnel daemon starts sing-box with the generated config.
 4. The monitor daemon repeatedly reads config and live network state, resolves protected

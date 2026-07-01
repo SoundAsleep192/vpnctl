@@ -62,7 +62,7 @@ VPNCTL_REINSTALL_SKIP_DAEMONS=1 ./scripts/reinstall-local.sh
 Then redeploy manually when ready:
 
 ```sh
-sudo HOME="$HOME" "$(command -v vpnctl)" install
+sudo HOME="$HOME" "$(command -v vpnctl)" __install
 ```
 
 Keeping `HOME` explicit prevents root from looking under `/var/root/.config/vpnctl`.
@@ -81,11 +81,12 @@ artifacts behind, remove them once with `sudo rm -rf dist/traybin`.
 ## Tray recovery
 
 ```sh
-vpnctl tray uninstall
-vpnctl tray install
 launchctl print "gui/$(id -u)/com.vpnctl.tray"
 tail -n 100 ~/.config/vpnctl/tray.log
 ```
+
+Tray is installed by the release installer and local reinstall script. If the
+LaunchAgent is missing, rerun the installer or `./scripts/reinstall-local.sh`.
 
 If the tray is missing on Apple Silicon, check Rosetta:
 
@@ -171,11 +172,6 @@ vpnctl sandbox status
 sudo vpnctl uninstall
 ```
 
-To also remove root-owned runtime cache:
-
-```sh
-sudo vpnctl uninstall --purge
-```
-
-Uninstall removes LaunchDaemons, pf anchor, pf.conf patch, and hosts sinkhole. User
-config under `~/.config/vpnctl` is preserved unless removed manually.
+Uninstall removes LaunchDaemons, LaunchAgents, pf anchor, pf.conf patch, hosts
+sinkhole, root state, logs, user config, vpnctl-managed preflight wrappers, and
+installed binaries.

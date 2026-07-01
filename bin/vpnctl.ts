@@ -24,13 +24,11 @@ import {
 } from "../src/core/sandbox";
 import { runSetup } from "../src/cli/commands/setup";
 import { runStatus } from "../src/cli/commands/status";
-import { runTrayInstall, runTrayUninstall } from "../src/cli/commands/tray";
+import { runTrayInstall } from "../src/cli/commands/tray";
 import { runTui } from "../src/cli/commands/tui";
 import { runUninstall } from "../src/cli/commands/uninstall";
 import { runUp } from "../src/cli/commands/up";
 import { runUpdate } from "../src/cli/commands/update";
-import { runWrapAdd, runWrapList, runWrapRemove } from "../src/cli/commands/wrap";
-import { runYield } from "../src/cli/commands/yield";
 import { loadConfig } from "../src/core/config";
 import { runMonitorDaemon } from "../src/daemon/monitor";
 import { runTrayDaemon } from "../src/daemon/tray";
@@ -56,8 +54,7 @@ async function runDaemonEntrypoint(): Promise<boolean> {
 program.name("vpnctl").description(pkg.description).version(pkg.version);
 
 program
-  .command("setup")
-  .description("interactively configure vpnctl (VLESS+Reality URI, domains, TUN interface, DNS servers)")
+  .command("__setup", { hidden: true })
   .option("--uri <uri>", "VLESS+Reality URI (skips the interactive prompt)")
   .option("--routing-mode <mode>", "routing mode: full or split")
   .action(async (opts: { uri?: string; routingMode?: string }) => {
@@ -65,19 +62,23 @@ program
   });
 
 program
-  .command("install")
-  .description("install the pf anchor, /etc/pf.conf patch, and LaunchDaemons (requires root)")
+  .command("__install", { hidden: true })
   .option("--routing-mode <mode>", "persist routing mode before installing: full or split")
   .action(async (opts: { routingMode?: string }) => {
     await runInstall({ routingMode: opts.routingMode });
   });
 
+program.command("__tray-install", { hidden: true }).action(async () => {
+  await runTrayInstall();
+});
+
 program
   .command("uninstall")
-  .description("remove the LaunchDaemons, pf anchor, /etc/pf.conf patch, and /etc/hosts sinkhole (requires root)")
-  .option("--purge", "also remove cached state under /Library/Application Support/vpnctl")
-  .action(async (opts: { purge?: boolean }) => {
-    await runUninstall({ purge: opts.purge });
+  .description(
+    "fully remove vpnctl daemons, firewall/DNS changes, state, logs, tray agent, wrappers, config, and installed binaries (requires root)",
+  )
+  .action(async () => {
+    await runUninstall();
   });
 
 program
@@ -92,13 +93,6 @@ program
   .description("stop the tunnel daemon (requires root)")
   .action(async () => {
     await runDown();
-  });
-
-program
-  .command("yield")
-  .description("suspend the pf killswitch while keeping the tunnel running — for coexisting with a corporate VPN (requires root)")
-  .action(async () => {
-    await runYield();
   });
 
 program
@@ -131,14 +125,6 @@ program
   .option("--ip", "also resolve the current public IP")
   .action(async (opts: { ip?: boolean }) => {
     await runStatus({ ip: opts.ip });
-  });
-
-program
-  .command("tui")
-  .alias("ui")
-  .description("open the interactive dashboard")
-  .action(async () => {
-    await runTui();
   });
 
 const domainsCommand = program.command("domains").description("manage the domain allowlist routed through the tunnel");
@@ -186,37 +172,9 @@ program
 
 program
   .command("doctor")
-  .description("run diagnostics on bun, config, sing-box binary, pf, and daemons (requires root)")
+  .description("run diagnostics on runtime, config, sing-box binary, pf, and daemons (requires root)")
   .action(async () => {
     await runDoctor();
-  });
-
-const wrapCommand = program.command("wrap").description("manage shell wrappers that route commands through `vpnctl exec`");
-
-wrapCommand
-  .command("add")
-  .description("generate a shell wrapper for each command in ~/.local/bin (or --dir)")
-  .argument("<command...>", "one or more command names to wrap, e.g. claude codex")
-  .option("--dir <path>", "directory to write wrappers into (default: ~/.local/bin)")
-  .action(async (commands: string[], opts: { dir?: string }) => {
-    await runWrapAdd(commands, { dir: opts.dir });
-  });
-
-wrapCommand
-  .command("remove")
-  .description("remove vpnctl-managed shell wrappers")
-  .argument("<command...>", "one or more wrapper names to remove")
-  .option("--dir <path>", "directory containing the wrappers (default: ~/.local/bin)")
-  .action(async (commands: string[], opts: { dir?: string }) => {
-    await runWrapRemove(commands, { dir: opts.dir });
-  });
-
-wrapCommand
-  .command("list")
-  .description("list vpnctl-managed shell wrappers")
-  .option("--dir <path>", "directory to scan (default: ~/.local/bin)")
-  .action(async (opts: { dir?: string }) => {
-    await runWrapList({ dir: opts.dir });
   });
 
 function collectOption(value: string, previous: string[]): string[] {
@@ -326,22 +284,6 @@ sandboxCommand
   .description("diagnose Docker sandbox prerequisites and cached assets")
   .action(async () => {
     await runSandboxDoctor();
-  });
-
-const trayCommand = program.command("tray").description("manage the menu-bar status indicator (per-user LaunchAgent)");
-
-trayCommand
-  .command("install")
-  .description("install the menu-bar status indicator LaunchAgent")
-  .action(async () => {
-    await runTrayInstall();
-  });
-
-trayCommand
-  .command("uninstall")
-  .description("remove the menu-bar status indicator LaunchAgent")
-  .action(async () => {
-    await runTrayUninstall();
   });
 
 program

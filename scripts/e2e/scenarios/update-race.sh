@@ -8,7 +8,7 @@
 #
 #   1. REDEPLOY-OVER-RUNNING (network-free, deterministic, runs everywhere):
 #      install a synthetic build with its daemons running, then run
-#      `vpnctl install` AGAIN — the exact bootout->bootstrap path the EIO-5 fix
+#      vpnctl's internal install entrypoint AGAIN — the exact bootout->bootstrap path the EIO-5 fix
 #      guards — and assert the running daemons survive the redeploy.
 #   2. LIVE UPDATE (delivery leg): run `vpnctl update` against the real latest
 #      release and assert the version bumps + daemons redeploy. This needs to
@@ -37,7 +37,7 @@ INSTALL_DIR="$(mktemp -d)"
 export VPNCTL_BIN="$INSTALL_DIR/vpnctl"
 
 cleanup() {
-  sudo "$VPNCTL_BIN" uninstall --purge >/dev/null 2>&1 || true
+  sudo "$VPNCTL_BIN" uninstall >/dev/null 2>&1 || true
   rm -rf "$INSTALL_DIR"
 }
 trap cleanup EXIT

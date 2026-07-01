@@ -11,9 +11,9 @@ blocked by default — not allowed through.
 ## Requirements
 
 - macOS (Apple Silicon or Intel)
-- [sing-box](https://sing-box.sagernet.org/)
-- Docker Desktop
 - A VLESS+Reality `vless://...` share link from your VPN provider
+- Internet access and an admin password for first install
+- Docker Desktop, only for `vpnctl sandbox`
 
 ## Install
 
@@ -22,26 +22,20 @@ curl -fsSL https://raw.githubusercontent.com/SoundAsleep192/vpnctl/master/script
 ```
 
 Installs `vpnctl` plus daemon aliases (`vpnctl-monitor`, `vpnctl-tunnel`, and
-`vpnctl-tray`) to `~/.local/bin` (override with `VPNCTL_INSTALL_DIR`). Add that
-directory to your `PATH` if prompted, then:
+`vpnctl-tray`) to `~/.local/bin` (override with `VPNCTL_INSTALL_DIR`), installs
+`sing-box` with Homebrew if missing, prepares Rosetta 2 on Apple Silicon for the
+tray helper, asks for the VLESS+Reality link, optionally installs Claude/Codex
+preflight wrappers, and installs the protection daemons. Add the install directory
+to your `PATH` if prompted.
 
-```sh
-brew install sing-box  # if not already installed
-vpnctl setup
-sudo vpnctl install
-```
-
-`vpnctl setup` asks for the VLESS+Reality link and uses it to create
-`~/.config/vpnctl/config.json`. vpnctl does not provide a VPN server by itself.
+The installer does not require Node.js or Bun. The release binary is self-contained.
+vpnctl does not provide a VPN server by itself.
 
 ## Usage
 
 ```sh
 vpnctl                       # open the interactive dashboard in a terminal
-vpnctl tui|ui                # open the interactive dashboard explicitly
-vpnctl setup [--routing-mode full|split]    # configure VLESS+Reality URI, domains, TUN interface, DNS, routing
-vpnctl install [--routing-mode full|split]  # install pf anchor, LaunchDaemons, and menu-bar icon (requires root)
-vpnctl uninstall [--purge] # remove LaunchDaemons, pf anchor, pf.conf patch, /etc/hosts sinkhole (requires root)
+vpnctl uninstall          # fully remove vpnctl daemons, firewall/DNS changes, state, logs, config, tray, preflight wrappers, and binaries (requires root)
 vpnctl up                  # start (or restart) the tunnel daemon (requires root)
 vpnctl down                # stop the tunnel daemon (requires root)
 vpnctl status [--ip]       # show pf, tunnel, daemon, and sinkhole state (requires root)
@@ -54,17 +48,19 @@ vpnctl sandbox run --workspace . -- <command>     # run arbitrary command in Doc
 vpnctl sandbox code --preset claude --workspace . # open VS Code remote backend in sandbox
 vpnctl domains list|add|remove <domain>  # manage the domain allowlist
 vpnctl logs [--monitor] [--tunnel] [-f] [-n <count>]  # tail monitor/tunnel logs
-vpnctl doctor              # diagnose bun, config, sing-box, pf, and daemons (requires root)
+vpnctl doctor              # diagnose runtime, config, sing-box, pf, and daemons (requires root)
 vpnctl update              # check for a newer release, install it, and redeploy daemons (requires root)
-vpnctl audit [--watch <s>] [--log] [--install-agent] [--uninstall-agent]  # snapshot configured process connections
-vpnctl tray install|uninstall  # reinstall/remove the menu-bar icon manually
+vpnctl audit [--watch <s>] [--log] [--install-agent] [--uninstall-agent]  # snapshot configured process sockets
 ```
 
 Routing mode controls the sing-box fallback route. `full` routes all non-private
 traffic through the proxy. `split` routes only configured domain suffixes through
 the proxy and leaves other traffic direct. New configs default to `split`.
-`vpnctl install --routing-mode full` persists the choice before regenerating
-`sing-box.json`.
+Choose routing mode during the installer or later in `vpnctl` under Configure.
+
+`doctor` checks local health: config, sing-box, pf, launchd daemons, update state,
+and VPN conflicts. `audit` is different: it snapshots configured process sockets so
+you can see what protected tools are connecting to.
 
 ## Protected Docker sandbox
 
@@ -112,13 +108,14 @@ backend, agent process, and extension backend inside the container.
 
 ### Status indicator
 
-`vpnctl tray install` adds a per-user LaunchAgent (`com.vpnctl.tray`) that shows a
+The installer adds a per-user LaunchAgent (`com.vpnctl.tray`) that shows a
 menu-bar icon reflecting live state — green (tunnel up), red (tunnel down, traffic
 blocked fail-closed), or gray (monitor daemon not running / state stale). It reads a
 world-readable `state.json` the monitor daemon writes each tick; no `sudo` needed.
 
 The menu-bar helper is an x86_64 binary, so on Apple Silicon it runs under Rosetta 2
-(`softwareupdate --install-rosetta`); `vpnctl tray install` warns if it's missing.
+(`softwareupdate --install-rosetta`); the install script installs Rosetta when
+needed.
 
 ## Development
 

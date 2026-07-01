@@ -53,7 +53,11 @@ export interface DashboardTexts {
   startClaudeDetail: string;
   startCodex: string;
   startCodexDetail: string;
+  startTunnel: string;
+  startTunnelDetail: string;
   status: string;
+  stopTunnel: string;
+  stopTunnelDetail: string;
   stopWorkspace: string;
   stopWorkspaceDetail: string;
   trafficScope: string;
@@ -124,7 +128,11 @@ export const DASHBOARD_TEXTS: Record<UiLanguage, DashboardTexts> = {
     startClaudeDetail: "New sandbox",
     startCodex: "Start Codex workspace",
     startCodexDetail: "New sandbox",
+    startTunnel: "Start tunnel",
+    startTunnelDetail: "Run vpnctl up",
     status: "Status",
+    stopTunnel: "Stop tunnel",
+    stopTunnelDetail: "Run vpnctl down",
     stopWorkspace: "Stop workspace",
     stopWorkspaceDetail: "Stop current sandbox",
     trafficScope: "Traffic scope",
@@ -193,7 +201,11 @@ export const DASHBOARD_TEXTS: Record<UiLanguage, DashboardTexts> = {
     startClaudeDetail: "Новый sandbox",
     startCodex: "Запустить Codex",
     startCodexDetail: "Новый sandbox",
+    startTunnel: "Запустить туннель",
+    startTunnelDetail: "Выполнить vpnctl up",
     status: "Статус",
+    stopTunnel: "Остановить туннель",
+    stopTunnelDetail: "Выполнить vpnctl down",
     stopWorkspace: "Остановить среду",
     stopWorkspaceDetail: "Остановить sandbox",
     trafficScope: "Охват трафика",

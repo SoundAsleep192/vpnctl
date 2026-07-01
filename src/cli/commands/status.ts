@@ -1,5 +1,5 @@
 import pkg from "../../../package.json";
-import { loadConfig } from "../../core/config";
+import { loadConfig, type RoutingMode } from "../../core/config";
 import type { Exec } from "../../core/exec";
 import { realExec } from "../../core/exec";
 import { formatKillswitchNotice } from "../../core/killswitch-notice";
@@ -35,6 +35,7 @@ export interface StatusResult {
   tunnelDaemonLoaded: boolean;
   sinkholeActive: boolean;
   publicIp: string | null;
+  routingMode: RoutingMode | null;
   updateAvailable: string | null;
   otherVpnInterfaces: OtherVpnInterface[];
   vpnRoutingConflict: string | null;
@@ -58,6 +59,18 @@ async function countTable(exec: Exec, table: string): Promise<number> {
     .split("\n")
     .map((line) => line.trim())
     .filter((line) => line !== "").length;
+}
+
+function routingModeFromSingBoxConfig(singboxConfig: unknown): RoutingMode | null {
+  if (typeof singboxConfig !== "object" || singboxConfig === null) return null;
+  if (!("route" in singboxConfig)) return null;
+  const route = singboxConfig.route;
+  if (typeof route !== "object" || route === null) return null;
+  if (!("final" in route)) return null;
+  const finalOutbound = route.final;
+  if (finalOutbound === "proxy") return "full";
+  if (finalOutbound === "direct") return "split";
+  return null;
 }
 
 export async function gatherStatus(
@@ -85,6 +98,7 @@ export async function gatherStatus(
     tunnelDaemonLoaded: await isLoaded(exec, LAUNCHD_LABEL_TUNNEL, "system"),
     sinkholeActive: hostsContent.includes(HOSTS_MARKER_BEGIN),
     publicIp: includeIp ? await resolvePublicIp(exec) : null,
+    routingMode: routingModeFromSingBoxConfig(singboxConfig),
     updateAvailable: await checkUpdateAvailable(exec, pkg.version, updateCheckCachePath),
     otherVpnInterfaces: vpnConflicts.otherInterfaces,
     vpnRoutingConflict: vpnConflicts.routingConflict,
@@ -105,6 +119,7 @@ export function formatStatus(status: StatusResult): string {
     `table <${PF_TABLE_V6}>: ${status.tableV6Count} entries`,
     "",
     "=== tunnel ===",
+    `routing mode: ${status.routingMode ?? "unknown"}`,
     `trusted interface: ${status.trustedInterface ?? "none"}`,
     `public interface: ${status.publicInterface ?? "none"}`,
     `tunnel: ${onOff(status.tunnelUp, "up", "down")}`,
@@ -135,6 +150,9 @@ export function formatStatus(status: StatusResult): string {
 
   if (status.publicIp !== null) {
     lines.push("", "=== public ip ===", status.publicIp);
+    if (status.routingMode === "split") {
+      lines.push("split mode: generic IP-check sites use the direct route; protected domain probes are checked by `vpnctl check`.");
+    }
   }
 
   if (status.updateAvailable !== null) {

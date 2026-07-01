@@ -68,6 +68,8 @@ type MenuItemId =
   | "logs"
   | "diagnostics"
   | "quit"
+  | "start-tunnel"
+  | "stop-tunnel"
   | "traffic-scope"
   | "connection"
   | "domains"
@@ -143,7 +145,7 @@ export type DashboardExitAction =
 
 export async function runTui(options: { exec?: Exec } = {}): Promise<void> {
   if (!process.stdin.isTTY || !process.stdout.isTTY) {
-    throw new Error("vpnctl tui needs an interactive terminal");
+    throw new Error("vpnctl needs an interactive terminal");
   }
 
   const exec = options.exec ?? realExec;
@@ -469,6 +471,20 @@ function buildMenu(options: BuildMenuOptions): MenuItem[] {
   if (options.screen === "dashboard") {
     return [
       { id: "status", label: options.texts.status, select: () => options.goTo("status") },
+      {
+        id: "start-tunnel",
+        label: options.texts.startTunnel,
+        detail: options.texts.startTunnelDetail,
+        detailTone: "green",
+        select: () => options.openExternal(["up"], "dashboard"),
+      },
+      {
+        id: "stop-tunnel",
+        label: options.texts.stopTunnel,
+        detail: options.texts.stopTunnelDetail,
+        detailTone: "yellow",
+        select: () => options.openExternal(["down"], "dashboard"),
+      },
       { id: "configure", label: options.texts.configure, select: () => options.goTo("configure") },
       { id: "workspace", label: options.texts.protectedWorkspace, select: () => options.goTo("workspace") },
       { id: "logs", label: options.texts.logs, select: () => options.goTo("logs") },
@@ -861,6 +877,22 @@ const DetailPanel: FC<{ screen: TuiScreen; selectedItem?: MenuItem; snapshot: Tu
   const language = snapshot.config?.ui.language ?? detectSystemLanguage();
 
   if (screen === "dashboard") {
+    if (selectedItem?.id === "start-tunnel") {
+      return (
+        <PanelText title={texts.startTunnel}>
+          <WrappedText value="Starts or restarts the tunnel daemon. Root prompt may appear." />
+        </PanelText>
+      );
+    }
+
+    if (selectedItem?.id === "stop-tunnel") {
+      return (
+        <PanelText title={texts.stopTunnel}>
+          <WrappedText value="Stops the tunnel daemon. Protected domains stay blocked fail-closed." />
+        </PanelText>
+      );
+    }
+
     return (
       <PanelText title={selectedItem?.label ?? texts.status}>
         <WrappedText value={texts.closeDashboard} />
@@ -1621,7 +1653,6 @@ function translateStatusValue(value: string, language: UiLanguage): string {
   if (language === "en") return value;
   if (value === "through VPN") return "через VPN";
   if (value === "blocked") return "заблокировано";
-  if (value === "not enforced") return "не защищено";
   if (value === "configured") return "настроено";
   if (value === "unknown") return "неизвестно";
   if (value === "not configured") return "не настроено";

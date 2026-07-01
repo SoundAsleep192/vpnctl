@@ -152,7 +152,7 @@ function buildSelfInvocation(args: string[]): string[] {
 async function installTrayForLoginUser(exec: Exec): Promise<void> {
   const sudoUser = Bun.env.SUDO_USER;
   if (process.getuid?.() === 0 && sudoUser !== undefined && sudoUser !== "root") {
-    const result = await exec(SUDO_BIN, ["-u", sudoUser, ...buildSelfInvocation(["tray", "install"])]);
+    const result = await exec(SUDO_BIN, ["-u", sudoUser, ...buildSelfInvocation(["__tray-install"])]);
     if (result.stdout.length > 0) console.log(result.stdout.trimEnd());
     if (result.stderr.length > 0) console.error(result.stderr.trimEnd());
     if (result.exitCode !== 0) throw new Error(`failed to install menu-bar icon: ${result.stderr.trim() || result.stdout.trim()}`);

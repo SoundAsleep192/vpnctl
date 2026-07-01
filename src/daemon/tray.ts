@@ -67,7 +67,7 @@ function tunnelToggleItem(status: TrayStatus) {
   return { __id: TUNNEL_TOGGLE_ITEM_ID, title: toggleTitle(status), tooltip: `vpnctl: ${statusLabel(status)}`, enabled: true };
 }
 
-function buildMenu(status: TrayStatus) {
+export function buildMenu(status: TrayStatus) {
   return {
     icon: ICONS[status],
     title: "",

@@ -23,14 +23,6 @@ describe("generateAnchorRules", () => {
   test("is block-only when the trusted interface is not a utun", () => {
     expect(generateAnchorRules({ trustedIface: "en0" })).toBe(fixture("pf-anchor.no-trusted.txt"));
   });
-
-  test("yield mode: pass-out rules present but no block rules when trusted interface set", () => {
-    expect(generateAnchorRules({ trustedIface: "utun20", yieldMode: true })).toBe(fixture("pf-anchor.yield.trusted.txt"));
-  });
-
-  test("yield mode: tables only (no pass, no block) when no trusted interface", () => {
-    expect(generateAnchorRules({ trustedIface: null, yieldMode: true })).toBe(fixture("pf-anchor.yield.no-trusted.txt"));
-  });
 });
 
 describe("writeAnchor", () => {

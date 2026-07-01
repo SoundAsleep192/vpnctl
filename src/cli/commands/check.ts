@@ -1,4 +1,4 @@
-import { loadConfig } from "../../core/config";
+import { loadConfig, type RoutingMode } from "../../core/config";
 import type { Exec } from "../../core/exec";
 import { realExec } from "../../core/exec";
 import { formatKillswitchNotice } from "../../core/killswitch-notice";
@@ -70,6 +70,14 @@ export function formatProbeResults(results: ProbeResult[]): string {
   return lines.join("\n");
 }
 
+export function formatRouteProof(publicInterface: string | null, routingMode: RoutingMode): string {
+  const interfaceName = publicInterface ?? "none";
+  if (routingMode === "split") {
+    return `route OK -> ${interfaceName} (split mode: generic IP-check sites stay direct; protected domains are probed below)`;
+  }
+  return `route OK -> ${interfaceName}`;
+}
+
 export interface CheckOptions {
   exec?: Exec;
   full?: boolean;
@@ -79,20 +87,18 @@ export async function runCheck(options: CheckOptions = {}): Promise<void> {
   requireRoot();
 
   const exec = options.exec ?? realExec;
+  const config = await loadConfig();
   const singboxConfig = await readSingBoxConfig(GENERATED_SINGBOX_CONFIG);
 
   if (!(await isTunnelUp(exec, singboxConfig, TUNNEL_PID_FILE))) {
-    const domains = await loadConfig()
-      .then((config) => config.domains)
-      .catch(() => []);
-    const notice = formatKillswitchNotice(domains, false);
+    const notice = formatKillswitchNotice(config.domains, false);
     if (notice !== null) console.error(notice);
     throw new Error("tunnel is down (public route is not via the tunnel interface) — run `sudo vpnctl up`");
   }
 
-  console.log(`route OK -> ${await getPublicInterface(exec)}`);
+  console.log(formatRouteProof(await getPublicInterface(exec), config.routing.mode));
 
-  const domains = options.full ? (await loadConfig()).domains : QUICK_CHECK_DOMAINS;
+  const domains = options.full ? config.domains : QUICK_CHECK_DOMAINS;
   const results = await runProbes(exec, domains);
   console.log(formatProbeResults(results));
 

@@ -76,6 +76,7 @@ describe("gatherStatus", () => {
         tunnelDaemonLoaded: false,
         sinkholeActive: false,
         publicIp: null,
+        routingMode: null,
         updateAvailable: null,
         otherVpnInterfaces: [],
         vpnRoutingConflict: null,
@@ -94,6 +95,7 @@ describe("gatherStatus", () => {
     try {
       const singboxConfig = {
         inbounds: [{ type: "tun", address: ["172.19.0.1/30"] }],
+        route: { final: "proxy" },
       };
 
       const { exec } = makeExec({
@@ -126,6 +128,7 @@ describe("gatherStatus", () => {
         tunnelDaemonLoaded: true,
         sinkholeActive: true,
         publicIp: "203.0.113.7",
+        routingMode: "full",
         updateAvailable: null,
         otherVpnInterfaces: [],
         vpnRoutingConflict: null,
@@ -151,6 +154,7 @@ describe("formatStatus", () => {
     tunnelDaemonLoaded: true,
     sinkholeActive: false,
     publicIp: null,
+    routingMode: "full",
     updateAvailable: null,
     otherVpnInterfaces: [],
     vpnRoutingConflict: null,
@@ -163,6 +167,7 @@ describe("formatStatus", () => {
     expect(output).toContain("pf: enabled");
     expect(output).toContain(`table <${PF_TABLE_V4}>: 3 entries`);
     expect(output).toContain("trusted interface: utun20");
+    expect(output).toContain("routing mode: full");
     expect(output).toContain("public interface: utun20");
     expect(output).toContain("tunnel: up");
     expect(output).toContain("sing-box: running");
@@ -176,6 +181,11 @@ describe("formatStatus", () => {
   test("includes the public ip section when present", () => {
     const output = formatStatus({ ...base, publicIp: "203.0.113.7" });
     expect(output).toContain("=== public ip ===\n203.0.113.7");
+  });
+
+  test("explains public ip checks in split mode", () => {
+    const output = formatStatus({ ...base, publicIp: "203.0.113.7", routingMode: "split" });
+    expect(output).toContain("split mode: generic IP-check sites use the direct route");
   });
 
   test("shows other VPN interfaces section when competing interfaces detected", () => {

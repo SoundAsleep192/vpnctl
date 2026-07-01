@@ -11,6 +11,7 @@ if [[ "$(id -u)" -eq 0 ]]; then
 fi
 
 install_dir="${VPNCTL_INSTALL_DIR:-}"
+tty_device="/dev/tty"
 if [[ -z "$install_dir" ]]; then
   if command -v vpnctl >/dev/null 2>&1; then
     install_dir="$(dirname -- "$(command -v vpnctl)")"
@@ -56,6 +57,48 @@ remove_installed_artifacts() {
   remove_path "$install_dir/traybin"
 }
 
+run_vpnctl_setup() {
+  local command_args=("$install_dir/vpnctl" "__setup")
+  if [[ -n "${VPNCTL_SETUP_URI:-}" ]]; then
+    command_args+=(--uri "$VPNCTL_SETUP_URI")
+  fi
+  if [[ -n "${VPNCTL_ROUTING_MODE:-}" ]]; then
+    command_args+=(--routing-mode "$VPNCTL_ROUTING_MODE")
+  fi
+
+  "${command_args[@]}"
+}
+
+run_vpnctl_install() {
+  local command_args=(sudo "HOME=$HOME" "$install_dir/vpnctl" "__install")
+  if [[ -n "${VPNCTL_ROUTING_MODE:-}" ]]; then
+    command_args+=(--routing-mode "$VPNCTL_ROUTING_MODE")
+  fi
+
+  "${command_args[@]}"
+}
+
+run_setup_if_needed() {
+  local config_file="$HOME/.config/vpnctl/config.json"
+
+  if [[ -s "$config_file" ]]; then
+    return
+  fi
+
+  printf 'No vpnctl config found. Running setup first.\n'
+  if [[ -n "${VPNCTL_SETUP_URI:-}" ]]; then
+    run_vpnctl_setup
+    return
+  fi
+
+  if [[ ! -r "$tty_device" || ! -w "$tty_device" ]]; then
+    printf 'No interactive terminal available for VLESS setup. Rerun in a terminal or set VPNCTL_SETUP_URI.\n' >&2
+    exit 2
+  fi
+
+  run_vpnctl_setup <"$tty_device" >"$tty_device" 2>"$tty_device"
+}
+
 printf 'Reinstalling vpnctl from %s into %s\n' "$repo_dir" "$install_dir"
 
 remove_path dist/traybin
@@ -98,6 +141,7 @@ if [[ "${VPNCTL_REINSTALL_SKIP_DAEMONS:-}" == "1" ]]; then
   exit 0
 fi
 
-sudo HOME="$HOME" "$install_dir/vpnctl" install
+run_setup_if_needed
+run_vpnctl_install
 
 printf 'Reinstall complete. Run: %s/vpnctl\n' "$install_dir"

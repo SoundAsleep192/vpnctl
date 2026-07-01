@@ -2,7 +2,7 @@ import type { SingBoxConfig } from "../../src/core/singbox-config";
 
 export const sampleConfig: SingBoxConfig = {
   log: {
-    level: "info",
+    level: "warn",
     timestamp: true,
   },
   dns: {

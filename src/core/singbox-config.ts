@@ -110,7 +110,7 @@ export function buildSingBoxConfig(opts: BuildSingBoxConfigOptions): SingBoxConf
   const fullTunnel = opts.routingMode === "full";
 
   return {
-    log: { level: "info", timestamp: true },
+    log: { level: "warn", timestamp: true },
     dns: {
       servers: [
         { tag: "proxy-dns", type: "https", server: dnsServer, detour: "proxy" },

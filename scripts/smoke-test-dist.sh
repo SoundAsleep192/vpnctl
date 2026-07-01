@@ -13,7 +13,7 @@ SAMPLE_VLESS_URI="vless://00000000-0000-4000-8000-000000000000@vpn.example.com:4
 SMOKE_TEST_HOME=$(mktemp -d)
 trap 'rm -rf "$SMOKE_TEST_HOME"' EXIT
 
-HOME="$SMOKE_TEST_HOME" ./dist/vpnctl setup --uri "$SAMPLE_VLESS_URI" >/dev/null
+HOME="$SMOKE_TEST_HOME" ./dist/vpnctl __setup --uri "$SAMPLE_VLESS_URI" >/dev/null
 
 test -s "$SMOKE_TEST_HOME/.config/vpnctl/config.json"
 test -s "$SMOKE_TEST_HOME/.config/vpnctl/sing-box.json"

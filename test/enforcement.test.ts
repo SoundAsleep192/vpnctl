@@ -36,17 +36,6 @@ describe("planEnforcement", () => {
 
     expect(plan.hostsChanged).toBe(false);
   });
-
-  test("yield mode: clears sinkhole and omits block rules even when tunnel is up", () => {
-    const sinkholed = computeHosts(CLEAN, DOMAINS, true).content;
-
-    const plan = planEnforcement(sinkholed, DOMAINS, "utun20", true, true);
-
-    expect(plan.hostsContent).toBe(CLEAN);
-    expect(plan.hostsChanged).toBe(true);
-    expect(plan.anchorRules).toBe(generateAnchorRules({ trustedIface: "utun20", yieldMode: true }));
-    expect(plan.anchorRules).not.toContain("block");
-  });
 });
 
 describe("pollUntil", () => {
