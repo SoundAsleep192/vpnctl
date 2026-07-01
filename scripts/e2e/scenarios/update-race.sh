@@ -70,11 +70,31 @@ github_reachable() {
     "https://api.github.com/repos/SoundAsleep192/vpnctl/releases/latest" >/dev/null 2>&1
 }
 
+checkout_version() {
+  sed -n 's/.*"version": "\([^"]*\)".*/\1/p' "$REPO_ROOT/package.json" | head -n 1
+}
+
+latest_release_version() {
+  curl -fsS --max-time 8 -H "User-Agent: vpnctl" \
+    "https://api.github.com/repos/SoundAsleep192/vpnctl/releases/latest" |
+    sed -n 's/.*"tag_name": "v\{0,1\}\([^"]*\)".*/\1/p' |
+    head -n 1
+}
+
 if [ "$REQUIRE_LIVE_UPDATE" != "1" ] && ! github_reachable; then
   echo "  SKIP live update — api.github.com unreachable from here, and"
   echo "       E2E_REQUIRE_LIVE_UPDATE != 1 (the redeploy path above already"
   echo "       proved the EIO-5 regression network-free)."
 else
+  checkout_version_value="$(checkout_version)"
+  latest_release_version_value="$(latest_release_version || true)"
+  if [ "$REQUIRE_LIVE_UPDATE" != "1" ] && [ -n "$checkout_version_value" ] && [ -n "$latest_release_version_value" ] &&
+    [ "$checkout_version_value" != "$latest_release_version_value" ]; then
+    echo "  SKIP live update — latest published release is v$latest_release_version_value,"
+    echo "       but this checkout is v$checkout_version_value. That is expected while"
+    echo "       a tag release is building before GitHub publishes the new release."
+    echo "       The redeploy path above already proved the EIO-5 regression network-free."
+  else
   # `vpnctl update` self-sudoes after its version check, so no sudo prefix here.
   update_output="$("$VPNCTL_BIN" update 2>&1)"
   update_status=$?
@@ -95,6 +115,7 @@ else
     poll_assert "tunnel daemon running after update" daemon_running "$LAUNCHD_LABEL_TUNNEL"
     assert "pf enabled after update" pf_enabled
     assert "anchor '$PF_ANCHOR_NAME' loaded after update" anchor_loaded
+  fi
   fi
 fi
 

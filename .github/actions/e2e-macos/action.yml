@@ -23,11 +23,15 @@ runs:
       shell: bash
       run: |
         mkdir -p "$HOME/.local/bin"
-        rm -f "$HOME/.local/bin/vpnctl" "$HOME/.local/bin/vpnctl-monitor" "$HOME/.local/bin/vpnctl-tunnel"
+        rm -f "$HOME/.local/bin/vpnctl" "$HOME/.local/bin/vpnctl-monitor" "$HOME/.local/bin/vpnctl-tunnel" "$HOME/.local/bin/vpnctl-tray"
+        rm -rf "$HOME/.local/bin/traybin"
         cp -p dist/vpnctl "$HOME/.local/bin/vpnctl"
         ln "$HOME/.local/bin/vpnctl" "$HOME/.local/bin/vpnctl-monitor"
         ln "$HOME/.local/bin/vpnctl" "$HOME/.local/bin/vpnctl-tunnel"
-        chmod +x "$HOME/.local/bin/vpnctl" "$HOME/.local/bin/vpnctl-monitor" "$HOME/.local/bin/vpnctl-tunnel"
+        ln "$HOME/.local/bin/vpnctl" "$HOME/.local/bin/vpnctl-tray"
+        cp -R dist/traybin "$HOME/.local/bin/"
+        chmod +x "$HOME/.local/bin/vpnctl" "$HOME/.local/bin/vpnctl-monitor" "$HOME/.local/bin/vpnctl-tunnel" "$HOME/.local/bin/vpnctl-tray"
+        chmod +x "$HOME/.local/bin/traybin/"*
         echo "$HOME/.local/bin" >> "$GITHUB_PATH"
     - name: Install sing-box
       shell: bash
