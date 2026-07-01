@@ -1,6 +1,6 @@
 {
   "name": "vpnctl",
-  "version": "0.2.3",
+  "version": "0.2.4",
   "description": "Fail-closed macOS VPN killswitch (pf firewall + DNS sinkhole + sing-box VLESS/Reality) for protected domains, driven by a console CLI.",
   "type": "module",
   "license": "MIT",
