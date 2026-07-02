@@ -9,6 +9,10 @@ set -euo pipefail
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SCENARIOS_DIR="$HERE/scenarios"
 TARGET="${1:-all}"
+E2E_DIST_DIR="${VPNCTL_E2E_DIST_DIR:-}"
+
+# shellcheck source=lib/stage-binaries.sh disable=SC1091
+source "$HERE/lib/stage-binaries.sh"
 
 if [ "$(uname -s)" != "Darwin" ]; then
   echo "vpnctl E2E only runs on macOS." >&2
@@ -20,7 +24,19 @@ run_scenario() {
   echo "########################################################"
   echo "# scenario: $1"
   echo "########################################################"
-  bash "$SCENARIOS_DIR/$1.sh"
+
+  if [ -z "$E2E_DIST_DIR" ]; then
+    bash "$SCENARIOS_DIR/$1.sh"
+    return
+  fi
+
+  local scenario_bin_dir
+  scenario_bin_dir="$(mktemp -d)"
+  local scenario_status=0
+  stage_e2e_binaries "$E2E_DIST_DIR" "$scenario_bin_dir"
+  VPNCTL_BIN="$scenario_bin_dir/vpnctl" bash "$SCENARIOS_DIR/$1.sh" || scenario_status=$?
+  rm -rf "$scenario_bin_dir"
+  return "$scenario_status"
 }
 
 case "$TARGET" in
