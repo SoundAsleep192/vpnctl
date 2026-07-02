@@ -138,12 +138,17 @@ ssh_vm 'bash -lc "
   cd ~/vpnctl
   bun install --frozen-lockfile
   bun run build
+  ./scripts/codesign-dist.sh
   mkdir -p \$HOME/.local/bin
-  rm -f \$HOME/.local/bin/vpnctl \$HOME/.local/bin/vpnctl-monitor \$HOME/.local/bin/vpnctl-tunnel
+  rm -f \$HOME/.local/bin/vpnctl \$HOME/.local/bin/vpnctl-monitor \$HOME/.local/bin/vpnctl-tunnel \$HOME/.local/bin/vpnctl-tray
+  rm -rf \$HOME/.local/bin/traybin
   cp -p dist/vpnctl \$HOME/.local/bin/vpnctl
   ln \$HOME/.local/bin/vpnctl \$HOME/.local/bin/vpnctl-monitor
   ln \$HOME/.local/bin/vpnctl \$HOME/.local/bin/vpnctl-tunnel
+  ln \$HOME/.local/bin/vpnctl \$HOME/.local/bin/vpnctl-tray
+  cp -R dist/traybin \$HOME/.local/bin/
   chmod +x \$HOME/.local/bin/vpnctl*
+  chmod +x \$HOME/.local/bin/traybin/*
 "'
 
 echo "Running E2E scenario '$SCENARIO' inside VM ..."
@@ -151,6 +156,7 @@ echo "Running E2E scenario '$SCENARIO' inside VM ..."
 ssh_vm "bash -lc '
   export PATH=\"\$HOME/.bun/bin:\$HOME/.local/bin:\$PATH\"
   export VPNCTL_BIN=\$HOME/.local/bin/vpnctl
+  export VPNCTL_E2E_DIST_DIR=\$PWD/dist
   cd ~/vpnctl
   bash scripts/e2e/run.sh $SCENARIO
 '"

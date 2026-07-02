@@ -45,4 +45,4 @@ runs:
       # regression it guards is proven network-free by re-installing over the
       # running daemons, which runs unconditionally. Set E2E_REQUIRE_LIVE_UPDATE=1
       # only in an environment with reliable api.github.com reachability.
-      run: VPNCTL_BIN="$HOME/.local/bin/vpnctl" bash scripts/e2e/run.sh "${{ inputs.scenario }}"
+      run: VPNCTL_E2E_DIST_DIR="$PWD/dist" VPNCTL_BIN="$HOME/.local/bin/vpnctl" bash scripts/e2e/run.sh "${{ inputs.scenario }}"

@@ -41,6 +41,8 @@ cleanup() {
     for binary in "${RELEASE_BINARIES[@]}"; do
       [ -f "$BACKUP_DIR/$binary" ] && cp "$BACKUP_DIR/$binary" "$INSTALL_DIR/$binary"
     done
+    rm -rf "$INSTALL_DIR/$E2E_TRAY_HELPER_DIR"
+    [ -d "$BACKUP_DIR/$E2E_TRAY_HELPER_DIR" ] && cp -R "$BACKUP_DIR/$E2E_TRAY_HELPER_DIR" "$INSTALL_DIR/"
     echo "Restored. To reload the daemons from them: sudo vpnctl __install"
   fi
   [ -n "$BACKUP_DIR" ] && rm -rf "$BACKUP_DIR"
@@ -55,6 +57,7 @@ BACKUP_DIR=$(mktemp -d)
 for binary in "${RELEASE_BINARIES[@]}"; do
   cp "$INSTALL_DIR/$binary" "$BACKUP_DIR/$binary"
 done
+[ -d "$INSTALL_DIR/$E2E_TRAY_HELPER_DIR" ] && cp -R "$INSTALL_DIR/$E2E_TRAY_HELPER_DIR" "$BACKUP_DIR/"
 
 echo "Installing synthetic v$OLD_VERSION over $INSTALL_DIR ..."
 install_binaries_to "$INSTALL_DIR" "$REPO_ROOT/dist"

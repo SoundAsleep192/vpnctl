@@ -10,6 +10,10 @@
 # the fail-closed sinkhole must stay active, which is what the structural tier
 # asserts.
 
+LIFECYCLE_LIB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=stage-binaries.sh disable=SC1091
+source "$LIFECYCLE_LIB_DIR/stage-binaries.sh"
+
 # Path to the vpnctl binary under test. Override with VPNCTL_BIN to test a
 # specific install (CI points this at the freshly built+installed binary).
 VPNCTL_BIN="${VPNCTL_BIN:-vpnctl}"
@@ -78,7 +82,7 @@ build_synthetic_old() {
   trap "cp '$pkg_backup' '$repo_root/package.json'; rm -f '$pkg_backup'" RETURN
 
   sed -i '' "s/\"version\": \"[^\"]*\"/\"version\": \"$version\"/" "$repo_root/package.json"
-  (cd "$repo_root" && bun run build >/dev/null)
+  (cd "$repo_root" && bun run build >/dev/null && ./scripts/codesign-dist.sh >/dev/null)
 }
 
 # install_binaries_to <dir> <from_dir>
@@ -87,14 +91,5 @@ build_synthetic_old() {
 install_binaries_to() {
   local dir="$1"
   local from_dir="$2"
-  mkdir -p "$dir"
-  local binary
-  for binary in "${RELEASE_BINARIES[@]}"; do
-    rm -f "$dir/$binary"
-  done
-  cp -p "$from_dir/vpnctl" "$dir/vpnctl"
-  ln "$dir/vpnctl" "$dir/vpnctl-monitor"
-  ln "$dir/vpnctl" "$dir/vpnctl-tunnel"
-  ln "$dir/vpnctl" "$dir/vpnctl-tray"
-  chmod +x "$dir/vpnctl" "$dir/vpnctl-monitor" "$dir/vpnctl-tunnel" "$dir/vpnctl-tray"
+  stage_e2e_binaries "$from_dir" "$dir"
 }
