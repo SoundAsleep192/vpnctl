@@ -12,9 +12,9 @@
 #      guards — and assert the running daemons survive the redeploy.
 #   2. LIVE UPDATE (delivery leg): run `vpnctl update` against the real latest
 #      release and assert the version bumps + daemons redeploy. This needs to
-#      reach api.github.com, so it is enforced on CI (E2E_REQUIRE_LIVE_UPDATE=1)
-#      and skipped with a notice when GitHub is unreachable locally (e.g. a VM
-#      NAT that resets the api.github.com TLS handshake).
+#      reach api.github.com, so it is best-effort and skipped with a notice when
+#      GitHub is unreachable or when a tag release is still building before
+#      GitHub publishes that tag as the latest release.
 #
 # DESTRUCTIVE: loads system LaunchDaemons. Run on a disposable macOS env.
 set -uo pipefail
@@ -25,9 +25,17 @@ REPO_ROOT="$(cd "$HERE/../../.." && pwd)"
 source "$HERE/../lib/assert.sh"
 # shellcheck source=../lib/lifecycle.sh disable=SC1091
 source "$HERE/../lib/lifecycle.sh"
+# shellcheck source=../lib/release-version.sh disable=SC1091
+source "$HERE/../lib/release-version.sh"
 
 SYNTHETIC_OLD_VERSION="${VPNCTL_E2E_OLD_VERSION:-0.0.1}"
 REQUIRE_LIVE_UPDATE="${E2E_REQUIRE_LIVE_UPDATE:-0}"
+
+checkout_version() {
+  sed -n 's/.*"version": "\([^"]*\)".*/\1/p' "$REPO_ROOT/package.json" | head -n 1
+}
+
+CHECKOUT_VERSION="$(checkout_version)"
 
 echo "=== vpnctl update-race E2E ==="
 
@@ -70,15 +78,10 @@ github_reachable() {
     "https://api.github.com/repos/SoundAsleep192/vpnctl/releases/latest" >/dev/null 2>&1
 }
 
-checkout_version() {
-  sed -n 's/.*"version": "\([^"]*\)".*/\1/p' "$REPO_ROOT/package.json" | head -n 1
-}
-
 latest_release_version() {
   curl -fsS --max-time 8 -H "User-Agent: vpnctl" \
     "https://api.github.com/repos/SoundAsleep192/vpnctl/releases/latest" |
-    sed -n 's/.*"tag_name": "v\{0,1\}\([^"]*\)".*/\1/p' |
-    head -n 1
+    parse_github_latest_release_version
 }
 
 if [ "$REQUIRE_LIVE_UPDATE" != "1" ] && ! github_reachable; then
@@ -86,36 +89,38 @@ if [ "$REQUIRE_LIVE_UPDATE" != "1" ] && ! github_reachable; then
   echo "       E2E_REQUIRE_LIVE_UPDATE != 1 (the redeploy path above already"
   echo "       proved the EIO-5 regression network-free)."
 else
-  checkout_version_value="$(checkout_version)"
   latest_release_version_value="$(latest_release_version || true)"
-  if [ "$REQUIRE_LIVE_UPDATE" != "1" ] && [ -n "$checkout_version_value" ] && [ -n "$latest_release_version_value" ] &&
-    [ "$checkout_version_value" != "$latest_release_version_value" ]; then
+  if [ "$REQUIRE_LIVE_UPDATE" != "1" ] && [ -z "$latest_release_version_value" ]; then
+    echo "  SKIP live update — api.github.com was reachable, but the latest"
+    echo "       release version could not be parsed. The redeploy path above"
+    echo "       already proved the EIO-5 regression network-free."
+  elif [ "$REQUIRE_LIVE_UPDATE" != "1" ] && [ -n "$CHECKOUT_VERSION" ] && [ "$CHECKOUT_VERSION" != "$latest_release_version_value" ]; then
     echo "  SKIP live update — latest published release is v$latest_release_version_value,"
-    echo "       but this checkout is v$checkout_version_value. That is expected while"
+    echo "       but this checkout is v$CHECKOUT_VERSION. That is expected while"
     echo "       a tag release is building before GitHub publishes the new release."
     echo "       The redeploy path above already proved the EIO-5 regression network-free."
   else
-  # `vpnctl update` self-sudoes after its version check, so no sudo prefix here.
-  update_output="$("$VPNCTL_BIN" update 2>&1)"
-  update_status=$?
-  if [ "$update_status" -ne 0 ]; then
-    echo "$update_output"
-    if [ "$REQUIRE_LIVE_UPDATE" != "1" ] && echo "$update_output" | grep -Eq "failed to (check|download)"; then
-      echo "  SKIP live update — GitHub release delivery failed from this runner,"
-      echo "       and E2E_REQUIRE_LIVE_UPDATE != 1 (the redeploy path above already"
-      echo "       proved the EIO-5 regression network-free)."
+    # `vpnctl update` self-sudoes after its version check, so no sudo prefix here.
+    update_output="$("$VPNCTL_BIN" update 2>&1)"
+    update_status=$?
+    if [ "$update_status" -ne 0 ]; then
+      echo "$update_output"
+      if [ "$REQUIRE_LIVE_UPDATE" != "1" ] && echo "$update_output" | grep -Eq "failed to (check|download)"; then
+        echo "  SKIP live update — GitHub release delivery failed from this runner,"
+        echo "       and E2E_REQUIRE_LIVE_UPDATE != 1 (the redeploy path above already"
+        echo "       proved the EIO-5 regression network-free)."
+      else
+        assert "vpnctl update exits 0" bash -c "exit $update_status"
+      fi
     else
-      assert "vpnctl update exits 0" bash -c "exit $update_status"
+      echo "$update_output"
+      assert "version bumped above $SYNTHETIC_OLD_VERSION" bash -c \
+        "[ \"\$('$VPNCTL_BIN' --version)\" != '$SYNTHETIC_OLD_VERSION' ]"
+      poll_assert "monitor daemon running after update" daemon_running "$LAUNCHD_LABEL_MONITOR"
+      poll_assert "tunnel daemon running after update" daemon_running "$LAUNCHD_LABEL_TUNNEL"
+      assert "pf enabled after update" pf_enabled
+      assert "anchor '$PF_ANCHOR_NAME' loaded after update" anchor_loaded
     fi
-  else
-    echo "$update_output"
-    assert "version bumped above $SYNTHETIC_OLD_VERSION" bash -c \
-      "[ \"\$('$VPNCTL_BIN' --version)\" != '$SYNTHETIC_OLD_VERSION' ]"
-    poll_assert "monitor daemon running after update" daemon_running "$LAUNCHD_LABEL_MONITOR"
-    poll_assert "tunnel daemon running after update" daemon_running "$LAUNCHD_LABEL_TUNNEL"
-    assert "pf enabled after update" pf_enabled
-    assert "anchor '$PF_ANCHOR_NAME' loaded after update" anchor_loaded
-  fi
   fi
 fi
 
